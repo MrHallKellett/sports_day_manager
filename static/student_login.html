@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Student Login</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-100 min-h-screen flex items-center justify-center">
+
+<div class="bg-white shadow p-6 rounded max-w-sm w-full">
+
+    <h1 class="text-xl font-bold mb-4 text-center">Student Login</h1>
+
+    <form id="loginForm" class="grid gap-3">
+        <label>Name
+            <input id="name" class="border rounded w-full px-3 py-2" required />
+        </label>
+        <label>Year Group
+            <input id="year_group" class="border rounded w-full px-3 py-2" required />
+        </label>
+        <label>House
+            <input id="house" class="border rounded w-full px-3 py-2" required />
+        </label>
+
+        <button class="bg-blue-600 text-white px-3 py-2 rounded">
+            Login
+        </button>
+    </form>
+
+</div>
+
+<script>
+document.getElementById("loginForm").onsubmit = (e) => {
+    e.preventDefault();
+    const name = document.getElementById("name").value;
+    const year = document.getElementById("year_group").value;
+    const house = document.getElementById("house").value;
+
+    const student = { name, year_group: year, house };
+    localStorage.setItem("student", JSON.stringify(student));
+
+    window.location.href = "/student/dashboard";
+};
+</script>
+
+</body>
+</html>

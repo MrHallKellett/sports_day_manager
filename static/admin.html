@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sports Day Admin</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-100 min-h-screen">
+
+<!-- HEADER -->
+<header class="bg-blue-600 text-white py-4 shadow">
+    <div class="max-w-4xl mx-auto px-4 flex justify-between items-center">
+        <h1 class="text-xl font-bold">Sports Day Administration</h1>
+        <button onclick="openCreateModal()" class="bg-white text-blue-600 font-semibold px-4 py-2 rounded shadow hover:bg-gray-100">
+            + Create Sports Day
+        </button>
+    </div>
+</header>
+
+<!-- MAIN CONTENT -->
+<main class="max-w-4xl mx-auto px-4 py-6">
+
+    <!-- SPORTS DAY TABLE -->
+    <div class="bg-white shadow rounded-lg p-4">
+        <h2 class="text-lg font-semibold mb-3">Existing Sports Days</h2>
+
+        <table class="min-w-full text-sm">
+            <thead>
+                <tr class="text-left border-b">
+                    <th class="py-2">Year</th>
+                    <th class="py-2">Date</th>
+                    <th class="py-2">Status</th>
+                    <th class="py-2">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="sportsday-table"></tbody>
+        </table>
+
+        <p id="empty-message" class="text-gray-500 text-center py-4 hidden">
+            No sports days found.
+        </p>
+    </div>
+
+</main>
+
+<!-- CREATE SPORTS DAY MODAL -->
+<div id="createModal" class="fixed inset-0 bg-black bg-opacity-40 hidden flex items-center justify-center">
+    <div class="bg-white rounded-lg shadow-lg w-11/12 max-w-md p-6">
+
+        <h3 class="text-lg font-semibold mb-4">Create New Sports Day</h3>
+
+        <form id="createForm" class="flex flex-col gap-3">
+            <label>
+                <span class="block text-sm font-medium">Year</span>
+                <input type="number" name="year" required
+                    class="mt-1 w-full border rounded px-3 py-2">
+            </label>
+
+            <label>
+                <span class="block text-sm font-medium">Date</span>
+                <input type="date" name="date" required
+                    class="mt-1 w-full border rounded px-3 py-2">
+            </label>
+
+            <div class="flex justify-end gap-3 mt-4">
+                <button type="button" onclick="closeCreateModal()" class="px-4 py-2 bg-gray-200 rounded">
+                    Cancel
+                </button>
+                <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded">
+                    Save
+                </button>
+            </div>
+        </form>
+
+    </div>
+</div>
+
+<!-- JS LOGIC -->
+<script>
+// Load sports days
+async function loadSportsDays() {
+    const res = await fetch("/sportsdays");
+    const data = await res.json();
+
+    const table = document.getElementById("sportsday-table");
+    const empty = document.getElementById("empty-message");
+    table.innerHTML = "";
+
+    if (data.length === 0) {
+        empty.classList.remove("hidden");
+        return;
+    }
+
+    empty.classList.add("hidden");
+
+    data.forEach(sd => {
+        const row = document.createElement("tr");
+        row.className = "border-b";
+
+        row.innerHTML = `
+            <td class="py-2">${sd.year}</td>
+            <td class="py-2">${sd.date}</td>
+            <td class="py-2">${sd.status || "Not started"}</td>
+            <td class="py-2">
+                <a href="/admin/sportsday/${sd.id}" class="text-blue-600 hover:underline">View</a>
+            </td>
+        `;
+
+        table.appendChild(row);
+    });
+}
+
+// Modal controls
+function openCreateModal() {
+    document.getElementById("createModal").classList.remove("hidden");
+}
+function closeCreateModal() {
+    document.getElementById("createModal").classList.add("hidden");
+}
+
+// Create sports day
+document.getElementById("createForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const form = new FormData(e.target);
+
+    await fetch("/sportsdays", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+            year: form.get("year"),
+            date: form.get("date")
+        })
+    });
+
+    closeCreateModal();
+    loadSportsDays();
+});
+
+// Initial load
+loadSportsDays();
+</script>
+
+</body>
+</html>
