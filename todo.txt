@@ -1,0 +1,18 @@
+creating or editing event does not update dashboard display - refresh needed.
+
+duplicating existing event not present (need to be able to copy from existing sports day)
+
+create event validation:
+
+scoring cutoff cannot be higher than max participants
+
+min participants cannot be less than 2 (pre-populate)
+
+year group drop down - according to event settings. allow multiple year groups / age categories for one event.
+
+add event settings:
+    select year groups: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13.
+    combine KS5?
+    combine KS4?
+
+

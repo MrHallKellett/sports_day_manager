@@ -87,7 +87,7 @@
         document.getElementById("createEventBtn").href = `/admin/events/new?sportsday=${sportsdayId}`;
     
         // Load settings
-        const settings = await fetch("/settings").then(r => r.json());
+        const settings = await fetch(`/sportsdays/${sportsdayId}/settings`).then(r => r.json());
         document.getElementById("fieldMin").value = settings.field_min || 0;
         document.getElementById("trackMin").value = settings.track_min || 0;
         document.getElementById("overallMax").value = settings.overall_max || 0;
@@ -126,7 +126,9 @@
     }
     
     async function saveRequirements() {
-        await fetch("/settings", {
+        await fetch(
+            `/sportsdays/${sportsdayId}/settings`,
+            {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({

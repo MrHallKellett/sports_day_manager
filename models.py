@@ -1,5 +1,5 @@
-from app import db
-
+from database import db
+ 
 class Event(db.Model):
     __tablename__ = "events"
     id = db.Column(db.Integer, primary_key=True)
@@ -42,6 +42,13 @@ class Settings(db.Model):
     __tablename__ = "settings"
     key = db.Column(db.String, primary_key=True)
     value = db.Column(db.String)
+
+class SportsDaySetting(db.Model):
+    __tablename__ = "sports_day_settings"
+    key = db.Column(db.String, primary_key=True)
+    value = db.Column(db.String)
+    sports_day_id = db.Column(db.Integer, primary_key=True)
+
 
 
 class Student(db.Model):
