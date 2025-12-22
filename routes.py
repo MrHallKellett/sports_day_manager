@@ -161,6 +161,56 @@ def update_event(eid):
     return ok({"message":"event updated"})
 
 
+@bp.get("/events/duplicate-options")
+def duplicate_event_options():
+    events = (
+        db.session.query(Event, SportsDay)
+        .join(SportsDay)
+        .order_by(SportsDay.year.desc(), Event.name)
+        .all()
+    )
+
+    return ok([
+        {
+            "event_id": e.id,
+            "sports_day_id": sd.id,
+            "sports_day_name": f"Sports Day {sd.year}",
+            "event_name": e.name
+        }
+        for e, sd in events
+    ])
+
+@bp.post("/sportsdays/<int:sd_id>/events/duplicate")
+def duplicate_event(sd_id):
+    data = request.get_json(force=True)
+    source_id = data["source_event_id"]
+
+    source = Event.query.get_or_404(source_id)
+
+    new_event = Event(
+        sports_day_id=sd_id,
+        name=source.name,
+        year_group=source.year_group,
+        category=source.category,
+        result_format=source.result_format,
+
+        min_participants=source.min_participants,
+        max_participants=source.max_participants,
+        scoring_places=source.scoring_places,
+        points_1st=source.points_1st,
+        points_nth=source.points_nth,
+        min_per_house=source.min_per_house,
+        max_per_house=source.max_per_house
+    )
+
+    db.session.add(new_event)
+    db.session.commit()
+
+    return ok({
+        "message": "event duplicated",
+        "new_event_id": new_event.id
+    })
+
 # -----------------------------
 # EVENT PARTICIPANTS
 # -----------------------------
@@ -212,6 +262,8 @@ def remove_participant(event_id, student_id):
 # -----------------------------
 # STATIC FILE SERVING
 # -----------------------------
+
+
 
 @bp.get("/admin")
 def admin_root():

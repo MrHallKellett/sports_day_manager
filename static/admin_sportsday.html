@@ -54,11 +54,25 @@
     <div class="bg-white shadow p-4 rounded">
         <div class="flex justify-between items-center mb-3">
             <h2 class="font-semibold">Events</h2>
-            <a id="createEventBtn"
-               class="bg-green-600 text-white px-3 py-2 rounded hover:bg-green-700"
-               href="#">
-               + Create Event
-            </a>
+            <div class="event-actions">
+                
+                <a id="createEventBtn"
+                class="bg-green-600 text-white px-3 py-2 rounded hover:bg-green-700">
+                    Create New Event
+                </a>
+              
+                <button id="duplicateEventBtn"
+                class="bg-green-600 text-white px-3 py-2 rounded hover:bg-green-700">
+                  Duplicate Existing Event
+                </button>
+              
+                <div id="duplicatePanel" class="duplicate-panel hidden">
+                  <select id="duplicateSelect">
+                    <option value="">-- Select an event to duplicate --</option>
+                  </select>
+                </div>
+              </div>
+  
         </div>
 
         <table class="min-w-full text-sm">
@@ -79,12 +93,31 @@
 <script>
     const sportsdayId = parseInt(window.location.pathname.split("/").pop());
     
+
+    async function loadDuplicateOptions() {
+        const options = await fetch("/events/duplicate-options")
+            .then(r => r.json());
+
+        const select = document.getElementById("duplicateSelect");
+
+        for (const opt of options) {
+            select.add(
+            new Option(
+                `${opt.sports_day_name} – ${opt.event_name}`,
+                opt.event_id
+            )
+            );
+        }
+    }
+
     // LOAD PAGE
     async function loadSportsDay() {
         const d = await fetch(`/sportsdays/${sportsdayId}`).then(r => r.json());
         document.getElementById("title").textContent = `Sports Day ${d.year}`;
         document.getElementById("status").value = d.status;
         document.getElementById("createEventBtn").href = `/admin/events/new?sportsday=${sportsdayId}`;
+
+      
     
         // Load settings
         const settings = await fetch(`/sportsdays/${sportsdayId}/settings`).then(r => r.json());
@@ -95,6 +128,60 @@
         // Load events
         loadEvents();
     }
+
+    
+    
+    let duplicateLoaded = false;
+
+    document
+    .getElementById("duplicateEventBtn")
+    .addEventListener("click", async () => {
+        const panel = document.getElementById("duplicatePanel");
+        panel.classList.toggle("hidden");
+
+        if (!duplicateLoaded && !panel.classList.contains("hidden")) {
+        await loadDuplicateOptions();
+        duplicateLoaded = true;
+        }
+    });
+
+
+    async function duplicateSelectedEvent() {
+    const select = document.getElementById("duplicateSelect");
+    const selectedEventId = select.value;
+
+    if (!selectedEventId) return;
+
+    // Optional: prevent double-trigger
+    select.disabled = true;
+
+    const response = await fetch(
+        `/sportsdays/${sportsdayId}/events/duplicate`,
+        {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            source_event_id: selectedEventId
+        })
+        }
+    );
+
+    select.classList.add("hidden");
+    select.disabled = false;
+    select.value = "";
+
+    if (!response.ok) {
+        alert("Failed to duplicate event.");
+        select.disabled = false;
+        return;
+    }
+
+    const data = await response.json();
+
+    window.location.href = `/admin/sportsday/${sportsdayId}`
+    }
+
+
     
     async function loadEvents() {
         const events = await fetch("/events").then(r => r.json());
@@ -139,6 +226,12 @@
         });
         alert("Requirements saved.");
     }
+
+    document
+    .getElementById("duplicateSelect")
+    .addEventListener("change", duplicateSelectedEvent);
+
+    
     
     loadSportsDay();
     </script>

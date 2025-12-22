@@ -1,7 +1,5 @@
 creating or editing event does not update dashboard display - refresh needed.
 
-duplicating existing event not present (need to be able to copy from existing sports day)
-
 create event validation:
 
 scoring cutoff cannot be higher than max participants
@@ -14,5 +12,7 @@ add event settings:
     select year groups: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13.
     combine KS5?
     combine KS4?
+
+add explainer tooltips to form inputs e.g. "Field minimum" - If each student should take part in a minimum number of field events, type a number here. Otherwise leave blank.
 
 
