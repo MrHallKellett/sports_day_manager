@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <title>Create Event</title>
 <script src="https://cdn.tailwindcss.com"></script>
+<script src="scripts/event_create_scripts.js" type="javascript"></script>
 </head>
 
 <body class="bg-gray-100 p-6 min-h-screen">
@@ -21,8 +22,11 @@
         </label>
 
         <label>Year Group
-            <input id="year_group" class="border rounded w-full px-3 py-2" required />
+            <select id="year_group" class="border rounded w-full px-3 py-2" required>
+                <!-- Options will be populated dynamically -->
+            </select>
         </label>
+
 
         <label>Category
             <select id="category" class="border rounded w-full px-3 py-2">
@@ -78,9 +82,16 @@
 <script>
     const urlParams = new URLSearchParams(window.location.search);
     document.getElementById("sportsday").value = urlParams.get("sportsday");
+
+    await loadYearGroups(e.sports_day_id);
     
     document.getElementById("eventForm").onsubmit = async (e) => {
         e.preventDefault();
+
+        if (!validateForm())
+        {
+            return;
+        }
     
         await fetch("/events", {
             method: "POST",

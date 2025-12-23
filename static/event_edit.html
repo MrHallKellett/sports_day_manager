@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <title>Edit Event</title>
 <script src="https://cdn.tailwindcss.com"></script>
+<script src="/static/scripts/event_create_scripts.js"></script>
 </head>
 
 <body class="bg-gray-100 p-6 min-h-screen">
@@ -21,7 +22,9 @@
         </label>
 
         <label>Year Group
-            <input id="year_group" class="border rounded w-full px-3 py-2" required />
+            <select id="year_group" class="border rounded w-full px-3 py-2" required>
+                <!-- Options will be populated dynamically -->
+            </select>
         </label>
 
         <label>Category
@@ -71,8 +74,12 @@
 const eventId = parseInt(window.location.pathname.split("/").slice(-2)[0]);
 
 
+
 async function loadEvent() {
     const e = await fetch(`/events/${eventId}`).then(r => r.json());
+
+    await loadYearGroups(e.sports_day_id);
+
 
     document.getElementById("name").value = e.name;
     document.getElementById("year_group").value = e.year_group;
@@ -88,6 +95,11 @@ async function loadEvent() {
 
 document.getElementById("form").onsubmit = async (e) => {
     e.preventDefault();
+
+    if (!validateForm())
+    {
+        return;
+    }
 
     await fetch(`/events/${eventId}`, {
         method: "PATCH",

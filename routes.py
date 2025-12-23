@@ -160,6 +160,12 @@ def get_event(eid):
     e = Event.query.get_or_404(eid)
     return ok(e.to_dict())
 
+@bp.delete("/events/<int:eid>")
+def delete_event(eid):
+    e = Event.query.filter_by(id=eid).delete()
+    db.session.commit()
+    return ok({"message":"event deleted"})
+
 
 @bp.patch("/events/<int:eid>")
 def update_event(eid):

@@ -112,9 +112,10 @@
             <h2 class="font-semibold">Events</h2>
             <div class="event-actions">
                 
-                <a id="createEventBtn"
-                class="bg-green-600 text-white px-3 py-2 rounded hover:bg-green-700">
-                    Create New Event
+                <a id="createEventBtn">
+                    <button class="bg-green-600 text-white px-3 py-2 rounded hover:bg-green-700">
+                        Create New Event
+                    </button>
                 </a>
               
                 <button id="duplicateEventBtn"
@@ -299,6 +300,7 @@
                     <td class="py-2">${e.category}</td>
                     <td class="py-2">
                         <a href="/admin/events/${e.id}/edit" class="text-blue-600 hover:underline">Edit</a>
+                        <button onclick="deleteEvent(${e.id})" class="text-red-600 hover:underline cursor-pointer bg-transparent border-0">Delete</button>
                     </td>
                 </tr>
             `)
@@ -345,6 +347,28 @@
         if (combineKS5.checked) selected.push("KS5");
 
         return selected;
+    }
+
+    async function deleteEvent(eventId) {
+        // Confirm before deleting
+        if (!confirm("Are you sure you want to delete this event?")) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/events/${eventId}`, {
+                method: "DELETE"
+            });
+
+            if (response.ok) {
+                // Reload the page after successful deletion
+                window.location.reload();
+            } else {
+                alert("Failed to delete event.");
+            }
+        } catch (error) {
+            alert("Error deleting event: " + error.message);
+        }
     }
 
     async function saveRequirements() {
