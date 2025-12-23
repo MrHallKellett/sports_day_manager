@@ -81,7 +81,8 @@ def get_settings(sd_id):
         "field_min": int(settings.get("field_min", 0)),
         "track_min": int(settings.get("track_min", 0)),
         "overall_max": int(settings.get("overall_max", 0)),
-        "year_groups": settings.get("year_groups", [])
+        "year_groups": settings.get("year_groups", []),
+        "houses": settings.get("houses", [])
     })
 
 

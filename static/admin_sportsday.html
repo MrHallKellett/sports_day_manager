@@ -43,6 +43,21 @@
             <input id="overallMax" type="number" class="w-full border rounded px-3 py-2" />
         </div>
 
+        <br>
+
+        <fieldset class="border p-4 rounded">
+            <legend class="font-semibold mb-2">Houses</legend>
+            <div class="grid grid-cols-2 gap-2 text-sm" id="houseNameContainer">
+                <label>House 1 Name:
+                <input id="house1"  class="w-full border rounded px-3 py-2" />
+                </label>
+                <label>House 2 Name:
+                    <input id="house1"  class="w-full border rounded px-3 py-2" />
+                </label>
+            </div>
+            <button onclick="addHouse()" id="addHouseBtn">Add House</button>
+        </fieldset>
+
         <fieldset class="border p-4 rounded">
             <legend class="font-semibold mb-2">Year Groups</legend>
           
@@ -64,6 +79,8 @@
               <label><input class="yearGroup" type="checkbox" class="year" value="11" id="y11"> Year 11</label>
               <label><input class="yearGroup" type="checkbox" class="year" value="12" id="y12"> Year 12</label>
               <label><input class="yearGroup" type="checkbox" class="year" value="13" id="y13"> Year 13</label>
+
+
             </div>
           
             <div class="mt-4 space-y-2">
@@ -77,6 +94,9 @@
                 Combine Year 12 &amp; 13 → KS5
               </label>
             </div>
+
+
+
           </fieldset>
     </div>
 
@@ -129,6 +149,28 @@
 <script>
     const sportsdayId = parseInt(window.location.pathname.split("/").pop());
 
+    function addHouse() {
+        const houseNames = document.getElementById("houseNameContainer");
+        
+        // Count existing houses to determine the next house number
+        const houseCount = houseNames.children.length + 1;
+        
+        // Create label element
+        const label = document.createElement("label");
+        label.textContent = `House ${houseCount} Name: `;
+        
+        // Create input element
+        const input = document.createElement("input");
+        input.id = `house${houseCount}`;
+        input.className = "w-full border rounded px-3 py-2";
+        
+        // Append input to label
+        label.appendChild(input);
+        
+        // Append label to container
+        houseNames.appendChild(label);
+    }
+
     async function loadDuplicateOptions() {
         const options = await fetch("/events/duplicate-options")
             .then(r => r.json());
@@ -157,6 +199,25 @@
         document.getElementById("fieldMin").value = settings.field_min || 0;
         document.getElementById("trackMin").value = settings.track_min || 0;
         document.getElementById("overallMax").value = settings.overall_max || 0;
+
+        if (settings.houses) {
+            const inputs = document.querySelectorAll("#houseNameContainer input");
+            
+            // Populate the first two default fields
+            settings.houses.forEach((house, index) => {
+                if (index < 2) {
+                    // Fill existing fields
+                    inputs[index].value = house;
+                }
+                else {
+                    // Add new fields for additional houses
+                    addHouse();
+                    // Get the newly added input and set its value
+                    const newInputs = document.querySelectorAll("#houseNameContainer input");
+                    newInputs[newInputs.length - 1].value = house;
+                }
+            });
+        }
 
         // Load year groups
         if (settings.year_groups) {
@@ -256,6 +317,12 @@
         alert("Status saved.");
     }
 
+    function getHouses() {
+        return Array.from(document.querySelectorAll("#houseNameContainer input"))
+        .map(input => input.value.trim())
+        .filter(value => value !== "");
+    }
+
     function getSelectedYearGroups() {
         const selected = [];
 
@@ -290,7 +357,8 @@
                     field_min: fieldMin.value,
                     track_min: trackMin.value,
                     overall_max: overallMax.value,
-                    year_groups: getSelectedYearGroups()
+                    year_groups: getSelectedYearGroups(),
+                    houses: getHouses()
                 })
             }
         );
