@@ -1,5 +1,3 @@
-creating or editing event does not update dashboard display - refresh needed.
-
 create event validation:
 
 scoring cutoff cannot be higher than max participants

@@ -14,6 +14,8 @@
 
     <form id="form" class="grid gap-3">
 
+        <input type="hidden" id="sportsday" />
+
         <label>Name
             <input id="name" class="border rounded w-full px-3 py-2" required />
         </label>
@@ -68,8 +70,9 @@
 <script>
 const eventId = parseInt(window.location.pathname.split("/").slice(-2)[0]);
 
+
 async function loadEvent() {
-    const e = await fetch("/events").then(r => r.json()).then(list => list.find(x => x.id === eventId));
+    const e = await fetch(`/events/${eventId}`).then(r => r.json());
 
     document.getElementById("name").value = e.name;
     document.getElementById("year_group").value = e.year_group;
@@ -80,6 +83,7 @@ async function loadEvent() {
     document.getElementById("cutoff").value = e.scoring_places;
     document.getElementById("p1").value = e.points_1st;
     document.getElementById("pn").value = e.points_nth;
+    document.getElementById("sportsday").value = e.sports_day_id;
 }
 
 document.getElementById("form").onsubmit = async (e) => {
@@ -89,20 +93,20 @@ document.getElementById("form").onsubmit = async (e) => {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-            name: name.value,
-            year_group: year_group.value,
-            category: category.value,
-            result_format: result_format.value,
-            min_participants: parseInt(min.value),
-            max_participants: parseInt(max.value),
-            scoring_places: parseInt(cutoff.value),
-            points_1st: parseInt(p1.value),
-            points_nth: parseInt(pn.value)
+            name: document.getElementById("name").value,
+            year_group: document.getElementById("year_group").value,
+            category: document.getElementById("category").value,
+            result_format: document.getElementById("result_format").value,
+            min_participants: parseInt(document.getElementById("min").value),
+            max_participants: parseInt(document.getElementById("max").value),
+            scoring_places: parseInt(document.getElementById("cutoff").value),
+            points_1st: parseInt(document.getElementById("p1").value),
+            points_nth: parseInt(document.getElementById("pn").value)
         })
     });
 
     alert("Event updated.");
-    history.back();
+    window.location.href = `/admin/sportsday/${document.getElementById("sportsday").value}`;
 };
 
 loadEvent();

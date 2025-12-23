@@ -6,6 +6,7 @@ bp = Blueprint("routes", __name__)
 
 from flask import Flask, request, jsonify, send_from_directory, abort
 from flask_sqlalchemy import SQLAlchemy
+from config import *
 
 import os
 
@@ -73,13 +74,14 @@ def get_setting(key, default=None):
 
 @bp.get("/sportsdays/<int:sd_id>/settings")
 def get_settings(sd_id):
-    keys = ["field_min", "track_min", "overall_max"]
     rows = SportsDaySetting.query.filter_by(sports_day_id=sd_id).all()
-    lookup = {r.key: r.value for r in rows}
+    settings = {r.key: r.value for r in rows}
 
     return ok({
-        k: int(lookup.get(k, 0))
-        for k in keys
+        "field_min": int(settings.get("field_min", 0)),
+        "track_min": int(settings.get("track_min", 0)),
+        "overall_max": int(settings.get("overall_max", 0)),
+        "year_groups": settings.get("year_groups", [])
     })
 
 
@@ -152,11 +154,18 @@ def create_event():
     return created({"id": e.id})
 
 
+@bp.get("/events/<int:eid>")
+def get_event(eid):
+    e = Event.query.get_or_404(eid)
+    return ok(e.to_dict())
+
+
 @bp.patch("/events/<int:eid>")
 def update_event(eid):
     e = Event.query.get_or_404(eid)
     for k,v in request.json.items():
-        setattr(e, k, v)
+        if k in ALLOWED_PATCH_FIELDS:
+            setattr(e, k, v)
     db.session.commit()
     return ok({"message":"event updated"})
 
@@ -189,7 +198,7 @@ def duplicate_event(sd_id):
 
     new_event = Event(
         sports_day_id=sd_id,
-        name=source.name,
+        name=source.name + " copy",
         year_group=source.year_group,
         category=source.category,
         result_format=source.result_format,

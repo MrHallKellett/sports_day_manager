@@ -102,7 +102,8 @@
         });
     
         alert("Event created.");
-        history.back();
+        
+        window.location.href = `/admin/sportsday/${document.getElementById("sportsday").value}`;
     };
     </script>
 

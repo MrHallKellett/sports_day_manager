@@ -1,4 +1,5 @@
 from database import db
+from sqlalchemy import JSON
  
 class Event(db.Model):
     __tablename__ = "events"
@@ -22,7 +23,22 @@ class Event(db.Model):
 
     participants = db.relationship("EventParticipant", backref="event", cascade="all, delete")
 
-
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "sports_day_id": self.sports_day_id,
+            "name": self.name,
+            "year_group": self.year_group,
+            "category": self.category,
+            "result_format": self.result_format,
+            "min_participants": self.min_participants,
+            "max_participants": self.max_participants,
+            "min_per_house": self.min_per_house,
+            "max_per_house": self.max_per_house,
+            "scoring_places": self.scoring_places,
+            "points_1st": self.points_1st,
+            "points_nth": self.points_nth,
+        }
 
 # -----------------------------
 # MODELS
@@ -46,7 +62,7 @@ class Settings(db.Model):
 class SportsDaySetting(db.Model):
     __tablename__ = "sports_day_settings"
     key = db.Column(db.String, primary_key=True)
-    value = db.Column(db.String)
+    value = db.Column(JSON)
     sports_day_id = db.Column(db.Integer, primary_key=True)
 
 

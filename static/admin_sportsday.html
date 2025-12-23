@@ -42,6 +42,42 @@
             <label>Overall maximum</label>
             <input id="overallMax" type="number" class="w-full border rounded px-3 py-2" />
         </div>
+
+        <fieldset class="border p-4 rounded">
+            <legend class="font-semibold mb-2">Year Groups</legend>
+          
+            <div class="grid grid-cols-2 gap-2 text-sm">
+          
+              <!-- Year 1–9 -->
+              <label><input class="yearGroup" type="checkbox" class="year" value="1" id="y1"> Year 1</label>
+              <label><input class="yearGroup" type="checkbox" class="year" value="2" id="y2"> Year 2</label>
+              <label><input class="yearGroup" type="checkbox" class="year" value="3" id="y3"> Year 3</label>
+              <label><input class="yearGroup" type="checkbox" class="year" value="4" id="y4"> Year 4</label>
+              <label><input class="yearGroup" type="checkbox" class="year" value="5" id="y5"> Year 5</label>
+              <label><input class="yearGroup" type="checkbox" class="year" value="6" id="y6"> Year 6</label>
+              <label><input class="yearGroup" type="checkbox" class="year" value="7" id="y7"> Year 7</label>
+              <label><input class="yearGroup" type="checkbox" class="year" value="8" id="y8"> Year 8</label>
+              <label><input class="yearGroup" type="checkbox" class="year" value="9" id="y9"> Year 9</label>
+          
+              <!-- Year 10–13 -->
+              <label><input class="yearGroup" type="checkbox" class="year" value="10" id="y10"> Year 10</label>
+              <label><input class="yearGroup" type="checkbox" class="year" value="11" id="y11"> Year 11</label>
+              <label><input class="yearGroup" type="checkbox" class="year" value="12" id="y12"> Year 12</label>
+              <label><input class="yearGroup" type="checkbox" class="year" value="13" id="y13"> Year 13</label>
+            </div>
+          
+            <div class="mt-4 space-y-2">
+              <label class="block font-medium">
+                <input type="checkbox" id="combineKS4">
+                Combine Year 10 &amp; 11 → KS4
+              </label>
+          
+              <label class="block font-medium">
+                <input type="checkbox" id="combineKS5">
+                Combine Year 12 &amp; 13 → KS5
+              </label>
+            </div>
+          </fieldset>
     </div>
 
     <button onclick="saveRequirements()" class="mt-3 bg-blue-600 text-white px-3 py-2 rounded">
@@ -92,7 +128,6 @@
 
 <script>
     const sportsdayId = parseInt(window.location.pathname.split("/").pop());
-    
 
     async function loadDuplicateOptions() {
         const options = await fetch("/events/duplicate-options")
@@ -102,10 +137,10 @@
 
         for (const opt of options) {
             select.add(
-            new Option(
-                `${opt.sports_day_name} – ${opt.event_name}`,
-                opt.event_id
-            )
+                new Option(
+                    `${opt.sports_day_name} – ${opt.event_name}`,
+                    opt.event_id
+                )
             );
         }
     }
@@ -117,72 +152,81 @@
         document.getElementById("status").value = d.status;
         document.getElementById("createEventBtn").href = `/admin/events/new?sportsday=${sportsdayId}`;
 
-      
-    
         // Load settings
         const settings = await fetch(`/sportsdays/${sportsdayId}/settings`).then(r => r.json());
         document.getElementById("fieldMin").value = settings.field_min || 0;
         document.getElementById("trackMin").value = settings.track_min || 0;
         document.getElementById("overallMax").value = settings.overall_max || 0;
-    
+
+        // Load year groups
+        if (settings.year_groups) {
+            
+            for (const yg of settings.year_groups) {
+                if (yg === "KS4") {
+                    combineKS4.checked = true;
+                    y10.disabled = true;
+                    y11.disabled = true;
+                } else if (yg === "KS5") {
+                    combineKS5.checked = true;
+                    y12.disabled = true;
+                    y13.disabled = true;
+                } else {
+                    const cb = document.getElementById(`y${yg}`);
+                    if (cb) cb.checked = true;
+                }
+            }
+        }
+
         // Load events
         loadEvents();
     }
 
-    
-    
     let duplicateLoaded = false;
 
     document
-    .getElementById("duplicateEventBtn")
-    .addEventListener("click", async () => {
-        const panel = document.getElementById("duplicatePanel");
-        panel.classList.toggle("hidden");
+        .getElementById("duplicateEventBtn")
+        .addEventListener("click", async () => {
+            const panel = document.getElementById("duplicatePanel");
+            panel.classList.toggle("hidden");
 
-        if (!duplicateLoaded && !panel.classList.contains("hidden")) {
-        await loadDuplicateOptions();
-        duplicateLoaded = true;
-        }
-    });
-
+            if (!duplicateLoaded && !panel.classList.contains("hidden")) {
+                await loadDuplicateOptions();
+                duplicateLoaded = true;
+            }
+        });
 
     async function duplicateSelectedEvent() {
-    const select = document.getElementById("duplicateSelect");
-    const selectedEventId = select.value;
+        const select = document.getElementById("duplicateSelect");
+        const selectedEventId = select.value;
 
-    if (!selectedEventId) return;
+        if (!selectedEventId) return;
 
-    // Optional: prevent double-trigger
-    select.disabled = true;
+        select.disabled = true;
 
-    const response = await fetch(
-        `/sportsdays/${sportsdayId}/events/duplicate`,
-        {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            source_event_id: selectedEventId
-        })
-        }
-    );
+        const response = await fetch(
+            `/sportsdays/${sportsdayId}/events/duplicate`,
+            {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    source_event_id: selectedEventId
+                })
+            }
+        );
 
-    select.classList.add("hidden");
-    select.disabled = false;
-    select.value = "";
-
-    if (!response.ok) {
-        alert("Failed to duplicate event.");
+        select.classList.add("hidden");
         select.disabled = false;
-        return;
+        select.value = "";
+
+        if (!response.ok) {
+            alert("Failed to duplicate event.");
+            return;
+        }
+
+        await response.json();
+        window.location.href = `/admin/sportsday/${sportsdayId}`;
     }
 
-    const data = await response.json();
-
-    window.location.href = `/admin/sportsday/${sportsdayId}`
-    }
-
-
-    
     async function loadEvents() {
         const events = await fetch("/events").then(r => r.json());
         const rows = events
@@ -198,10 +242,10 @@
                 </tr>
             `)
             .join("");
-    
+
         document.getElementById("eventsTable").innerHTML = rows;
     }
-    
+
     async function saveStatus() {
         const status = document.getElementById("status").value;
         await fetch(`/sportsdays/${sportsdayId}`, {
@@ -211,30 +255,79 @@
         });
         alert("Status saved.");
     }
-    
+
+    function getSelectedYearGroups() {
+        const selected = [];
+
+        document
+            .querySelectorAll(".yearGroup:checked")
+            .forEach(cb => {
+                const y = parseInt(cb.value);
+
+                if (
+                    (y === 10 || y === 11) && combineKS4.checked ||
+                    (y === 12 || y === 13) && combineKS5.checked
+                ) {
+                    return;
+                }
+
+                selected.push(y);
+            });
+
+        if (combineKS4.checked) selected.push("KS4");
+        if (combineKS5.checked) selected.push("KS5");
+
+        return selected;
+    }
+
     async function saveRequirements() {
         await fetch(
             `/sportsdays/${sportsdayId}/settings`,
             {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                field_min: fieldMin.value,
-                track_min: trackMin.value,
-                overall_max: overallMax.value
-            })
-        });
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    field_min: fieldMin.value,
+                    track_min: trackMin.value,
+                    overall_max: overallMax.value,
+                    year_groups: getSelectedYearGroups()
+                })
+            }
+        );
         alert("Requirements saved.");
     }
 
     document
-    .getElementById("duplicateSelect")
-    .addEventListener("change", duplicateSelectedEvent);
+        .getElementById("duplicateSelect")
+        .addEventListener("change", duplicateSelectedEvent);
 
-    
-    
+    // Year group combine logic
+    const combineKS4 = document.getElementById("combineKS4");
+    const combineKS5 = document.getElementById("combineKS5");
+
+    const y10 = document.getElementById("y10");
+    const y11 = document.getElementById("y11");
+    const y12 = document.getElementById("y12");
+    const y13 = document.getElementById("y13");
+
+    combineKS4.addEventListener("change", () => {
+        const on = combineKS4.checked;
+        y10.checked = false;
+        y11.checked = false;
+        y10.disabled = on;
+        y11.disabled = on;
+    });
+
+    combineKS5.addEventListener("change", () => {
+        const on = combineKS5.checked;
+        y12.checked = false;
+        y13.checked = false;
+        y12.disabled = on;
+        y13.disabled = on;
+    });
+
     loadSportsDay();
-    </script>
+</script>
 
 </body>
 </html>
