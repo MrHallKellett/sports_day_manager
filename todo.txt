@@ -1,11 +1,25 @@
-create event validation:
-
-scoring cutoff cannot be higher than max participants
-
-min participants cannot be less than 2 (pre-populate)
-
-year group drop down - according to event settings. allow multiple year groups / age categories for one event.
-
 add explainer tooltips to form inputs e.g. "Field minimum" - If each student should take part in a minimum number of field events, type a number here. Otherwise leave blank.
+
+student upload - PK is name + year group. overwrite any existing match
+
+edit mode - should not show multiple columns of events same name. one column. however database write must update the correct event (e.g. name + year group) for a given student.
+
+error / warning / info display interface - sticky footer, colour coded.
+
+add student form - enter details manually
+
+filter student display by name, year group etc.
+
+admin can assign staff + roles (entering results for a specific event, enrolling participants in a given event
+
+staff can log in and see a limited version of the admin dashboard - they can only modify the events of their own students.
+
+they can resolve clashes - students signing up for too many events.
+
+students can log in and can choose their events. they see warnings for : not signed up for enoguh / signed up for too many / signed up for something that exceeds their maximum etc.
+
+
+
+
 
 

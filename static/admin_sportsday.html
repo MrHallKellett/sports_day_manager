@@ -145,10 +145,63 @@
         </table>
     </div>
 
+    <!-- STUDENTS SECTION - Add this after the REQUIREMENTS section and before EVENTS LIST -->
+    <div class="bg-white shadow p-4 rounded mb-6">
+        <h2 class="font-semibold mb-3">Students</h2>
+        
+        <!-- CSV Upload -->
+        <div class="mb-4">
+            <input type="file" id="csvFile" accept=".csv" class="hidden" />
+            <button onclick="document.getElementById('csvFile').click()" 
+                    class="bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-700">
+                Upload CSV
+            </button>
+            <span id="csvFileName" class="ml-2 text-sm text-gray-600"></span>
+        </div>
+
+        <div id="uploadWarnings" class="hidden warning-box"></div>
+        
+        <!-- Students Table -->
+        <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+                <thead>
+                    <tr class="text-left border-b">
+                        <th class="py-2">Name</th>
+                        <th class="py-2">House</th>
+                        <th class="py-2">Year Group</th>
+                        <th class="py-2">Events Registered</th>
+                    </tr>
+                </thead>
+                <tbody id="studentsTable">
+                    <tr>
+                        <td colspan="4" class="py-4 text-center text-gray-500">No students loaded</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
 </div>
 
 <script>
     const sportsdayId = parseInt(window.location.pathname.split("/").pop());
+
+    function eventAllowsStudent(event, student) {
+        const yg = event.year_group;
+
+        if (yg === "KS4") return student.year === 10 || student.year === 11;
+        if (yg === "KS5") return student.year === 12 || student.year === 13;
+
+        return student.year === yg;
+    }
+
+    function indexIssues(issues = []) {
+        const map = {};
+        for (const i of issues) {
+            map[i.name] = i;
+        }
+        return map;
+    }
 
     function addHouse() {
         const houseNames = document.getElementById("houseNameContainer");
@@ -186,6 +239,16 @@
                 )
             );
         }
+    }
+    function showUploadWarning(issues) {
+        const box = document.getElementById("uploadWarnings");
+        box.classList.remove("hidden");
+
+        box.innerHTML = `
+            <strong>Warning:</strong>
+            ${issues.length} student(s) have houses or years not configured
+            for this sports day.
+        `;
     }
 
     // LOAD PAGE
@@ -309,6 +372,66 @@
         document.getElementById("eventsTable").innerHTML = rows;
     }
 
+    async function loadStudents(issues = []) {
+        const issueMap = indexIssues(issues);
+
+        const data = await fetch(
+            `/sportsdays/${sportsdayId}/students`
+        ).then(r => r.json());
+
+        const { students, events, participation } = data;
+
+        const thead = document
+            .querySelector("#studentsTable")
+            .closest("table")
+            .querySelector("thead tr");
+
+        // Rebuild header
+        thead.innerHTML = `
+            <th>Name</th>
+            <th>House</th>
+            <th>Year</th>
+            ${events.map(e => `<th>${e.name}</th>`).join("")}
+        `;
+
+        const tbody = document.getElementById("studentsTable");
+        tbody.innerHTML = "";
+
+        for (const s of students) {
+            const issue = issueMap[s.name];
+            const tr = document.createElement("tr");
+
+            const houseClass = issue?.house_invalid ? "cell-warning" : "";
+            const yearClass = issue?.year_invalid ? "cell-warning" : "";
+
+            tr.innerHTML = `
+                <td>${s.name}</td>
+                <td class="${houseClass}">${s.house}</td>
+                <td class="${yearClass}">${s.year}</td>
+            `;
+
+            for (const e of events) {
+                const allowed = eventAllowsStudent(e, s);
+                const checked = participation[s.id]?.includes(e.id);
+
+                const cb = document.createElement("input");
+                cb.type = "checkbox";
+                    
+                cb.disabled = !allowed;
+
+                cb.addEventListener("change", () =>
+                    toggleParticipation(e.id, s.id, cb.checked)
+                );
+
+                const td = document.createElement("td");
+                td.appendChild(cb);
+                tr.appendChild(td);
+            }
+
+            tbody.appendChild(tr);
+        }
+    }
+
     async function saveStatus() {
         const status = document.getElementById("status").value;
         await fetch(`/sportsdays/${sportsdayId}`, {
@@ -317,6 +440,25 @@
             body: JSON.stringify({ status })
         });
         alert("Status saved.");
+    }
+
+    async function toggleParticipation(eventId, studentId, on) {
+        const url = `/events/${eventId}/participants` +
+            (on ? "" : `/${studentId}`);
+
+        const opts = on
+            ? {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ student_id: studentId })
+            }
+            : { method: "DELETE" };
+
+        const res = await fetch(url, opts);
+
+        if (!res.ok) {
+            alert("Unable to update participation");
+        }
     }
 
     function getHouses() {
@@ -418,7 +560,47 @@
         y13.disabled = on;
     });
 
+    
+
+    document.getElementById("csvFile").addEventListener("change", async e => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        document.getElementById("csvFileName").textContent = file.name;
+
+        const form = new FormData();
+        form.append("file", file);
+
+        
+
+        const res = await fetch(
+        `/sportsdays/${sportsdayId}/students/upload`,
+            { method: "POST", body: form }
+        );
+
+        if (!res.ok) {
+            const message = await res.text();
+            alert(message);
+            console.log(message);   
+            return;
+        }
+
+        const result = await res.json();
+        if (result.issues?.length) {
+            showUploadWarning(result.issues);
+        }
+
+        await loadStudents(result.issues);
+
+            
+
+        
+
+    });
+
+
     loadSportsDay();
+
 </script>
 
 </body>

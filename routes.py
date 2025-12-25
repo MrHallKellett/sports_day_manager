@@ -10,9 +10,12 @@ from config import *
 
 import os
 
+import csv
+import io
 
 
 def ok(data): return jsonify(data), 200
+
 def created(data): return jsonify(data), 201
 
 
@@ -70,6 +73,26 @@ def update_sportsday(sid):
 def get_setting(key, default=None):
     s = Settings.query.get(key)
     return s.value if s else default
+
+def load_settings(sd_id):
+    rows = SportsDaySetting.query.filter_by(sports_day_id=sd_id).all()
+    return {r.key: r.value for r in rows}
+
+def get_allowed_houses_and_years(sd_id):
+    settings = load_settings(sd_id)
+
+    houses = set(settings.get("houses", []))
+
+    years = set()
+    for yg in settings.get("year_groups", []):
+        if yg == "KS4":
+            years.update([10, 11])
+        elif yg == "KS5":
+            years.update([12, 13])
+        else:
+            years.add(int(yg))
+
+    return houses, years
 
 
 @bp.get("/sportsdays/<int:sd_id>/settings")
@@ -167,6 +190,7 @@ def delete_event(eid):
     return ok({"message":"event deleted"})
 
 
+
 @bp.patch("/events/<int:eid>")
 def update_event(eid):
     e = Event.query.get_or_404(eid)
@@ -175,6 +199,15 @@ def update_event(eid):
             setattr(e, k, v)
     db.session.commit()
     return ok({"message":"event updated"})
+
+@bp.patch("/participants/<int:sdid>")
+def update_participants(sdid):
+    pass
+
+@bp.get("/participants/<int:sdid>")
+def get_participants(sdid):
+    pass
+
 
 
 @bp.get("/events/duplicate-options")
@@ -230,6 +263,122 @@ def duplicate_event(sd_id):
 # -----------------------------
 # EVENT PARTICIPANTS
 # -----------------------------
+
+@bp.post("/sportsdays/<int:sd_id>/students/upload")
+def upload_students(sd_id):
+    if "file" not in request.files:
+        abort(400, "No file uploaded")
+
+    file = request.files["file"]
+
+    try:
+        text = file.stream.read().decode("utf-8-sig")
+    except UnicodeDecodeError:
+        abort(400, "CSV file must be UTF-8 encoded")
+
+    if not text.strip():
+        abort(400, "CSV file is empty")
+
+    stream = io.StringIO(text, newline=None)
+    reader = csv.DictReader(stream)
+
+    if not reader.fieldnames:
+        abort(400, "CSV file has no header row")
+
+    # ✅ Normalise headings (case + whitespace)
+    headers = {h.strip().lower() for h in reader.fieldnames}
+
+    required = {"name", "house", "year"}
+    missing = required - headers
+
+    if missing:
+        abort(
+            400,
+            f"CSV is missing required column(s): {', '.join(sorted(missing))}"
+        )
+
+    houses_allowed, years_allowed = get_allowed_houses_and_years(sd_id)
+
+    issues = []
+    created = 0
+
+    for row_num, raw in enumerate(reader, start=2):
+        try:
+            name = raw.get("name", "").strip()
+            house = raw.get("house", "").strip()
+            year = int(raw.get("year", "").strip())
+        except ValueError:
+            abort(
+                400,
+                f"Invalid year value on row {row_num} (must be a number)"
+            )
+
+        if not name:
+            abort(400, f"Missing student name on row {row_num}")
+
+        house_invalid = house not in houses_allowed
+        year_invalid = year not in years_allowed
+
+        if house_invalid or year_invalid:
+            issues.append({
+                "row": row_num,
+                "name": name,
+                "house_invalid": house_invalid,
+                "year_invalid": year_invalid
+            })
+
+        student = Student(
+            name=name,
+            house=house,
+            year=year,
+            email=raw.get("email", "").strip() or None
+        )
+
+        db.session.add(student)
+        created += 1
+
+    db.session.commit()
+
+    return ok({
+        "created": created,
+        "issues": issues
+    })
+
+
+@bp.get("/sportsdays/<int:sd_id>/students")
+def get_students(sd_id):
+    students = Student.query.all()
+    events = Event.query.filter_by(sports_day_id=sd_id).all()
+    participants = EventParticipant.query.all()
+
+    # student_id -> set(event_id)
+    participation = {}
+    for p in participants:
+        participation.setdefault(p.student_id, set()).add(p.event_id)
+
+    return ok({
+        "students": [
+            {
+                "id": s.id,
+                "name": s.name,
+                "house": s.house,
+                "year": s.year,
+                "email": s.email
+            }
+            for s in students
+        ],
+        "events": [
+            {
+                "id": e.id,
+                "name": e.name,
+                "year_group": e.year_group
+            }
+            for e in events
+        ],
+        "participation": {
+            str(k): list(v) for k, v in participation.items()
+        }
+    })
 
 @bp.get("/event_participants")
 def all_participants():
@@ -309,6 +458,7 @@ def student_login_page():
 @bp.get("/student/dashboard")
 def student_dashboard_page():
     return send_from_directory("static", "student_dashboard.html")
+
 
 
 @bp.get("/")
