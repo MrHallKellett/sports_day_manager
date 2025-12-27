@@ -1,17 +1,22 @@
 
-async function loadYearGroups(sportsDayId) {
-    const settings = await fetch(`/sportsdays/${sportsDayId}/settings`).then(r => r.json());
-    return settings;
+
+async function loadConfiguredYearGroups(sportsdayId) {
+    const res = await fetch(`/sportsdays/${sportsdayId}/settings`);
+    if (!res.ok) throw new Error("Failed to load sports day settings");
+
+    const settings = await res.json();
+    return new Set(settings.year_groups || []);
 }
 
-function populateYearGroupSelect(settings) {
+
+function populateYearGroupSelect(yearGroups) {
     const yearGroupSelect = document.getElementById("year_group");
     
     // Clear existing options
     yearGroupSelect.innerHTML = "";
     
     // Populate with year groups from settings
-    settings.year_groups.forEach(yearGroup => {
+    yearGroups.forEach(yearGroup => {
         const option = document.createElement("option");
         option.value = yearGroup;
         option.textContent = yearGroup;

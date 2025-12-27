@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Sports Day Management</title>
 <script src="https://cdn.tailwindcss.com"></script>
+<script src="/static/scripts/event_create_scripts.js"></script>
 </head>
 
 <body class="bg-gray-100 min-h-screen">
@@ -130,6 +131,12 @@
                 </div>
               </div>
   
+        </div>
+
+        <div class="mb-3 text-sm">
+            <span class="inline-block bg-red-100 border border-red-300 px-2 py-1 rounded">
+                Red fields indicate configuration issues — hover for details
+            </span>
         </div>
 
         <table class="min-w-full text-sm">
@@ -354,21 +361,47 @@
     }
 
     async function loadEvents() {
-        const events = await fetch("/events").then(r => r.json());
-        const rows = events
-            .filter(e => e.sports_day_id === sportsdayId)
-            .map(e => `
+        const [events, allowedYearGroups] = await Promise.all([
+            fetch("/events").then(r => r.json()),
+            loadConfiguredYearGroups(sportsdayId)
+        ]);
+
+        const sportsDayEvents = events.filter(e => e.sports_day_id === sportsdayId);
+        const warnings = computeEventWarnings(sportsDayEvents, allowedYearGroups);
+
+        const rows = sportsDayEvents.map(e => {
+            const msgs = warnings[e.id];
+            const hasError = msgs.length > 0;
+            const tooltip = msgs.join(" • ");
+
+            const errorClass = hasError
+                ? "bg-red-100 text-red-800 border border-red-300"
+                : "";
+
+            return `
                 <tr class="border-b">
-                    <td class="py-2">${e.name}</td>
-                    <td class="py-2">${e.year_group}</td>
-                    <td class="py-2">${e.category}</td>
-                    <td class="py-2">
-                        <a href="/admin/events/${e.id}/edit" class="text-blue-600 hover:underline">Edit</a>
-                        <button onclick="deleteEvent(${e.id})" class="text-red-600 hover:underline cursor-pointer bg-transparent border-0">Delete</button>
+                    <td class="py-2 px-2 ${errorClass}" title="${tooltip}">
+                        ${e.name}
+                    </td>
+                    <td class="py-2 px-2 ${errorClass}" title="${tooltip}">
+                        ${e.year_group}
+                    </td>
+                    <td class="py-2 px-2">
+                        ${e.category}
+                    </td>
+                    <td class="py-2 px-2">
+                        <a href="/admin/events/${e.id}/edit"
+                        class="text-blue-600 hover:underline">
+                        Edit
+                        </a>
+                        <button onclick="deleteEvent(${e.id})"
+                            class="text-red-600 hover:underline cursor-pointer bg-transparent border-0 ml-2">
+                            Delete
+                        </button>
                     </td>
                 </tr>
-            `)
-            .join("");
+            `;
+        }).join("");
 
         document.getElementById("eventsTable").innerHTML = rows;
     }
@@ -399,6 +432,8 @@
         tbody.innerHTML = "";
 
         for (const s of students) {
+
+            console.log(s)
             const issue = issueMap[s.name];
             const tr = document.createElement("tr");
 
@@ -460,6 +495,37 @@
         if (!res.ok) {
             alert("Unable to update participation");
         }
+    }
+
+    function computeEventWarnings(events, allowedYearGroups) {
+        const warnings = {}; // event_id -> [messages]
+        const seen = new Map(); // key -> event_id
+
+        for (const e of events) {
+            warnings[e.id] = [];
+
+            // ❌ Invalid year group
+            if (!allowedYearGroups.has(e.year_group)) {
+                warnings[e.id].push(
+                    `Year group "${e.year_group}" is not configured for this sports day`
+                );
+            }
+
+            // ❌ Duplicate name + year group
+            const key = `${e.name}::${e.year_group}`;
+            if (seen.has(key)) {
+                warnings[e.id].push(
+                    `Duplicate event name and year group (matches another event)`
+                );
+                warnings[seen.get(key)].push(
+                    `Duplicate event name and year group (matches another event)`
+                );
+            } else {
+                seen.set(key, e.id);
+            }
+        }
+
+        return warnings;
     }
 
     function getHouses() {

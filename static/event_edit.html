@@ -74,7 +74,7 @@
     const eventId = parseInt(window.location.pathname.split("/").slice(-2)[0]);
 
     async function initYearGroupDropdown(sportsDayId) {
-            const yearGroups = await loadYearGroups(sportsDayId);
+            const yearGroups = await loadConfiguredYearGroups(sportsDayId);
             populateYearGroupSelect(yearGroups);
         }
 

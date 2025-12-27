@@ -82,7 +82,7 @@
 <script>
 
     async function initYearGroupDropdown(sportsDayId) {
-        const yearGroups = await loadYearGroups(sportsDayId);
+        const yearGroups = await loadConfiguredYearGroups(sportsDayId);
         populateYearGroupSelect(yearGroups);
     }
 
