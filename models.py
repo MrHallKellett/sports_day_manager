@@ -52,7 +52,11 @@ class SportsDay(db.Model):
     status = db.Column(db.String, default="registering")  # registering / recording
 
     events = db.relationship("Event", backref="sports_day", cascade="all, delete")
-
+    participants = db.relationship(
+        "SportsDayParticipant",
+        backref="sports_day",
+        cascade="all, delete-orphan"
+    )
 
 class Settings(db.Model):
     __tablename__ = "settings"
@@ -71,10 +75,14 @@ class Student(db.Model):
     __tablename__ = "students"
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String, nullable=False)
-    year = db.Column(db.String, nullable=False)
+    year = db.Column(db.Integer, nullable=False)
     house = db.Column(db.String, nullable=False)
     email = db.Column(db.String, nullable=True)
-
+    sports_days = db.relationship(
+        "SportsDayParticipant",
+        backref="student",
+        cascade="all, delete-orphan"
+    )
     
 
 
@@ -93,3 +101,24 @@ class Result(db.Model):
     event_id = db.Column(db.Integer, db.ForeignKey("events.id"), nullable=False)
     student_id = db.Column(db.Integer, db.ForeignKey("students.id"), nullable=False)
     result_value = db.Column(db.Float, nullable=False)
+
+class SportsDayParticipant(db.Model):
+    __tablename__ = "sports_day_participants"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    sports_day_id = db.Column(
+        db.Integer,
+        db.ForeignKey("sports_day.id"),
+        nullable=False
+    )
+
+    student_id = db.Column(
+        db.Integer,
+        db.ForeignKey("students.id"),
+        nullable=False
+    )
+
+    __table_args__ = (
+        db.UniqueConstraint("sports_day_id", "student_id"),
+    )

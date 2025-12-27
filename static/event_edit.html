@@ -71,57 +71,60 @@
 </div>
 
 <script>
-const eventId = parseInt(window.location.pathname.split("/").slice(-2)[0]);
+    const eventId = parseInt(window.location.pathname.split("/").slice(-2)[0]);
+
+    async function initYearGroupDropdown(sportsDayId) {
+            const yearGroups = await loadYearGroups(sportsDayId);
+            populateYearGroupSelect(yearGroups);
+        }
+
+    async function loadEvent() {
+        const e = await fetch(`/events/${eventId}`).then(r => r.json());
+
+        initYearGroupDropdown(e.sports_day_id);
 
 
-
-async function loadEvent() {
-    const e = await fetch(`/events/${eventId}`).then(r => r.json());
-
-    await loadYearGroups(e.sports_day_id);
-
-
-    document.getElementById("name").value = e.name;
-    document.getElementById("year_group").value = e.year_group;
-    document.getElementById("category").value = e.category;
-    document.getElementById("result_format").value = e.result_format;
-    document.getElementById("min").value = e.min_participants;
-    document.getElementById("max").value = e.max_participants;
-    document.getElementById("cutoff").value = e.scoring_places;
-    document.getElementById("p1").value = e.points_1st;
-    document.getElementById("pn").value = e.points_nth;
-    document.getElementById("sportsday").value = e.sports_day_id;
-}
-
-document.getElementById("form").onsubmit = async (e) => {
-    e.preventDefault();
-
-    if (!validateForm())
-    {
-        return;
+        document.getElementById("name").value = e.name;
+        document.getElementById("year_group").value = e.year_group;
+        document.getElementById("category").value = e.category;
+        document.getElementById("result_format").value = e.result_format;
+        document.getElementById("min").value = e.min_participants;
+        document.getElementById("max").value = e.max_participants;
+        document.getElementById("cutoff").value = e.scoring_places;
+        document.getElementById("p1").value = e.points_1st;
+        document.getElementById("pn").value = e.points_nth;
+        document.getElementById("sportsday").value = e.sports_day_id;
     }
 
-    await fetch(`/events/${eventId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            name: document.getElementById("name").value,
-            year_group: document.getElementById("year_group").value,
-            category: document.getElementById("category").value,
-            result_format: document.getElementById("result_format").value,
-            min_participants: parseInt(document.getElementById("min").value),
-            max_participants: parseInt(document.getElementById("max").value),
-            scoring_places: parseInt(document.getElementById("cutoff").value),
-            points_1st: parseInt(document.getElementById("p1").value),
-            points_nth: parseInt(document.getElementById("pn").value)
-        })
-    });
+    document.getElementById("form").onsubmit = async (e) => {
+        e.preventDefault();
 
-    alert("Event updated.");
-    window.location.href = `/admin/sportsday/${document.getElementById("sportsday").value}`;
-};
+        if (!validateForm())
+        {
+            return;
+        }
 
-loadEvent();
+        await fetch(`/events/${eventId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                name: document.getElementById("name").value,
+                year_group: document.getElementById("year_group").value,
+                category: document.getElementById("category").value,
+                result_format: document.getElementById("result_format").value,
+                min_participants: parseInt(document.getElementById("min").value),
+                max_participants: parseInt(document.getElementById("max").value),
+                scoring_places: parseInt(document.getElementById("cutoff").value),
+                points_1st: parseInt(document.getElementById("p1").value),
+                points_nth: parseInt(document.getElementById("pn").value)
+            })
+        });
+
+        alert("Event updated.");
+        window.location.href = `/admin/sportsday/${document.getElementById("sportsday").value}`;
+    };
+
+    loadEvent();
 </script>
 
 </body>

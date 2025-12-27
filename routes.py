@@ -1,12 +1,15 @@
 from flask import Blueprint, request, jsonify, abort, send_from_directory
 from database import db
-from models import Event, SportsDay, Student, Settings, EventParticipant, SportsDaySetting
+from models import Event, SportsDay, SportsDayParticipant, Student, Settings, \
+                   EventParticipant, SportsDaySetting
+
 
 bp = Blueprint("routes", __name__)
 
 from flask import Flask, request, jsonify, send_from_directory, abort
 from flask_sqlalchemy import SQLAlchemy
 from config import *
+from utils import *
 
 import os
 
@@ -263,7 +266,6 @@ def duplicate_event(sd_id):
 # -----------------------------
 # EVENT PARTICIPANTS
 # -----------------------------
-
 @bp.post("/sportsdays/<int:sd_id>/students/upload")
 def upload_students(sd_id):
     if "file" not in request.files:
@@ -285,22 +287,18 @@ def upload_students(sd_id):
     if not reader.fieldnames:
         abort(400, "CSV file has no header row")
 
-    # ✅ Normalise headings (case + whitespace)
     headers = {h.strip().lower() for h in reader.fieldnames}
-
     required = {"name", "house", "year"}
     missing = required - headers
 
     if missing:
-        abort(
-            400,
-            f"CSV is missing required column(s): {', '.join(sorted(missing))}"
-        )
+        abort(400, f"CSV is missing required column(s): {', '.join(sorted(missing))}")
 
     houses_allowed, years_allowed = get_allowed_houses_and_years(sd_id)
 
     issues = []
-    created = 0
+    created_students = 0
+    linked_students = 0
 
     for row_num, raw in enumerate(reader, start=2):
         try:
@@ -308,16 +306,14 @@ def upload_students(sd_id):
             house = raw.get("house", "").strip()
             year = int(raw.get("year", "").strip())
         except ValueError:
-            abort(
-                400,
-                f"Invalid year value on row {row_num} (must be a number)"
-            )
+            abort(400, f"Invalid year value on row {row_num} (must be a number)")
 
         if not name:
             abort(400, f"Missing student name on row {row_num}")
 
         house_invalid = house not in houses_allowed
-        year_invalid = year not in years_allowed
+        student_groups = year_to_groups(year)
+        year_invalid = student_groups.isdisjoint(years_allowed)
 
         if house_invalid or year_invalid:
             issues.append({
@@ -327,29 +323,79 @@ def upload_students(sd_id):
                 "year_invalid": year_invalid
             })
 
-        student = Student(
-            name=name,
-            house=house,
-            year=year,
-            email=raw.get("email", "").strip() or None
-        )
+        email = raw.get("email", "").strip() or None
 
-        db.session.add(student)
-        created += 1
+        # -----------------------------
+        # 1️⃣ Find or create student
+        # -----------------------------
+        student = None
+
+        if email:
+            student = Student.query.filter_by(email=email).first()
+
+        if not student:
+            student = Student.query.filter_by(
+                name=name,
+                year=year,
+                house=house
+            ).first()
+
+        if not student:
+            student = Student(
+                name=name,
+                house=house,
+                year=year,
+                email=email
+            )
+            db.session.add(student)
+            db.session.flush()   # ✅ ensure student.id exists
+            created_students += 1
+
+        # -----------------------------
+        # 2️⃣ Link student to sports day
+        # -----------------------------
+        exists = SportsDayParticipant.query.filter_by(
+            sports_day_id=sd_id,
+            student_id=student.id
+        ).first()
+
+        if not exists:
+            db.session.add(
+                SportsDayParticipant(
+                    sports_day_id=sd_id,
+                    student_id=student.id
+                )
+            )
+            linked_students += 1
 
     db.session.commit()
 
     return ok({
-        "created": created,
+        "created_students": created_students,
+        "linked_students": linked_students,
         "issues": issues
     })
 
 
 @bp.get("/sportsdays/<int:sd_id>/students")
 def get_students(sd_id):
-    students = Student.query.all()
+    # Students for this sports day only
+    students = (
+        Student.query
+        .join(SportsDayParticipant)
+        .filter(SportsDayParticipant.sports_day_id == sd_id)
+        .all()
+    )
+
     events = Event.query.filter_by(sports_day_id=sd_id).all()
-    participants = EventParticipant.query.all()
+
+    # Only participants for events in this sports day
+    participants = (
+        EventParticipant.query
+        .join(Event)
+        .filter(Event.sports_day_id == sd_id)
+        .all()
+    )
 
     # student_id -> set(event_id)
     participation = {}

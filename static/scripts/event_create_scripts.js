@@ -1,6 +1,10 @@
 
 async function loadYearGroups(sportsDayId) {
     const settings = await fetch(`/sportsdays/${sportsDayId}/settings`).then(r => r.json());
+    return settings;
+}
+
+function populateYearGroupSelect(settings) {
     const yearGroupSelect = document.getElementById("year_group");
     
     // Clear existing options

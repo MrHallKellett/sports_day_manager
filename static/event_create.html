@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <title>Create Event</title>
 <script src="https://cdn.tailwindcss.com"></script>
-<script src="scripts/event_create_scripts.js" type="javascript"></script>
+<script src="/static/scripts/event_create_scripts.js"></script>
 </head>
 
 <body class="bg-gray-100 p-6 min-h-screen">
@@ -80,10 +80,18 @@
 </div>
 
 <script>
-    const urlParams = new URLSearchParams(window.location.search);
-    document.getElementById("sportsday").value = urlParams.get("sportsday");
 
-    await loadYearGroups(e.sports_day_id);
+    async function initYearGroupDropdown(sportsDayId) {
+        const yearGroups = await loadYearGroups(sportsDayId);
+        populateYearGroupSelect(yearGroups);
+    }
+
+    const urlParams = new URLSearchParams(window.location.search);
+    sports_day_id = urlParams.get("sportsday");
+    document.getElementById("sportsday").value = sports_day_id
+    
+
+    initYearGroupDropdown(sports_day_id);
     
     document.getElementById("eventForm").onsubmit = async (e) => {
         e.preventDefault();
