@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Sports Day Management</title>
 <script src="https://cdn.tailwindcss.com"></script>
-<script src="/static/scripts/event_create_scripts.js"></script>
+<script src="/static/scripts/data_fetching_layer.js"></script>
+<script src="/static/scripts/domain_layer.js"></script>
 </head>
 
 <body class="bg-gray-100 min-h-screen">
@@ -193,13 +194,11 @@
 <script>
     const sportsdayId = parseInt(window.location.pathname.split("/").pop());
 
+    
+
     function eventAllowsStudent(event, student) {
-        const yg = event.year_group;
-
-        if (yg === "KS4") return student.year === 10 || student.year === 11;
-        if (yg === "KS5") return student.year === 12 || student.year === 13;
-
-        return student.year === yg;
+        const studentGroups = yearToGroups(student.year);
+        return studentGroups.has(String(event.year_group));
     }
 
     function indexIssues(issues = []) {
@@ -361,17 +360,21 @@
     }
 
     async function loadEvents() {
-        const [events, allowedYearGroups] = await Promise.all([
+        const [events, allowedAgeCategories] = await Promise.all([
             fetch("/events").then(r => r.json()),
-            loadConfiguredYearGroups(sportsdayId)
+            loadConfiguredAgeCategories(sportsdayId)
         ]);
 
+     
+
         const sportsDayEvents = events.filter(e => e.sports_day_id === sportsdayId);
-        const warnings = computeEventWarnings(sportsDayEvents, allowedYearGroups);
+        const warnings = computeEventWarnings(sportsDayEvents, allowedAgeCategories);
 
         const rows = sportsDayEvents.map(e => {
             const msgs = warnings[e.id];
             const hasError = msgs.length > 0;
+            console.log(e)
+            console.log(msgs)
             const tooltip = msgs.join(" • ");
 
             const errorClass = hasError
@@ -497,15 +500,20 @@
         }
     }
 
-    function computeEventWarnings(events, allowedYearGroups) {
+    function computeEventWarnings(events, allowedAgeCategories) {
+
+        
+
         const warnings = {}; // event_id -> [messages]
         const seen = new Map(); // key -> event_id
 
+        const allowedYears = ageCategoriesToYears(allowedAgeCategories)
+        
         for (const e of events) {
             warnings[e.id] = [];
 
             // ❌ Invalid year group
-            if (!allowedYearGroups.has(e.year_group)) {
+            if (!allowedYears.has(String(e.year_group))) {
                 warnings[e.id].push(
                     `Year group "${e.year_group}" is not configured for this sports day`
                 );

@@ -4,7 +4,8 @@
 <meta charset="UTF-8">
 <title>Edit Event</title>
 <script src="https://cdn.tailwindcss.com"></script>
-<script src="/static/scripts/event_create_scripts.js"></script>
+<script src="/static/scripts/ui_layer.js"></script>
+<script src="/static/scripts/data_fetching_layer.js"></script>
 </head>
 
 <body class="bg-gray-100 p-6 min-h-screen">
@@ -74,7 +75,7 @@
     const eventId = parseInt(window.location.pathname.split("/").slice(-2)[0]);
 
     async function initYearGroupDropdown(sportsDayId) {
-            const yearGroups = await loadConfiguredYearGroups(sportsDayId);
+            const yearGroups = await loadConfiguredAgeCategories(sportsDayId);
             populateYearGroupSelect(yearGroups);
         }
 
