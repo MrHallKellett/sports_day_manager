@@ -1,4 +1,5 @@
 function ageCategoriesToYears(ageCategories) {
+    console.log(ageCategories)
     years = new Set()
     for (const ac of ageCategories) {
         if (ac === "KS4") {
@@ -15,6 +16,7 @@ function ageCategoriesToYears(ageCategories) {
             years.add(String(ac))
         }
     }
+    console.log(years)
     return years;
 }
 
@@ -29,3 +31,17 @@ function yearToGroups(year) {
 
     return groups;
 }
+
+function isDigit(string) {
+    // Ensure the input is a single character string first
+    if (typeof string !== 'string') {
+      return false;
+    }
+    for (const char of string) {
+        const code = char.charCodeAt(0);
+        if (!(code >= 48 && code <= 57)) {
+            return false;
+        }
+    }
+    return true;
+  }

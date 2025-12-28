@@ -227,6 +227,7 @@ def duplicate_event_options():
             "event_id": e.id,
             "sports_day_id": sd.id,
             "sports_day_name": f"Sports Day {sd.year}",
+            "event_year_group": e.year_group,
             "event_name": e.name
         }
         for e, sd in events
@@ -402,6 +403,15 @@ def get_students(sd_id):
     for p in participants:
         participation.setdefault(p.student_id, set()).add(p.event_id)
 
+
+    events_by_name = {}
+
+    for e in events:
+        events_by_name.setdefault(e.name, []).append({
+            "id": e.id,
+            "year_group": str(e.year_group)
+        })
+
     return ok({
         "students": [
             {
@@ -413,14 +423,7 @@ def get_students(sd_id):
             }
             for s in students
         ],
-        "events": [
-            {
-                "id": e.id,
-                "name": e.name,
-                "year_group": e.year_group
-            }
-            for e in events
-        ],
+        "events_by_name": events_by_name,
         "participation": {
             str(k): list(v) for k, v in participation.items()
         }

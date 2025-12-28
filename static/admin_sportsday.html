@@ -194,6 +194,13 @@
 <script>
     const sportsdayId = parseInt(window.location.pathname.split("/").pop());
 
+    function findMatchingEvent(eventsForName, studentYear) {
+        const studentGroups = yearToGroups(studentYear);
+
+        return eventsForName.find(e =>
+            studentGroups.has(String(e.year_group))
+        );
+    }
     
 
     function eventAllowsStudent(event, student) {
@@ -238,9 +245,11 @@
         const select = document.getElementById("duplicateSelect");
 
         for (const opt of options) {
+            let yg = opt.event_year_group
+            yg = (isDigit(yg)) ? "Y"+yg : yg
             select.add(
                 new Option(
-                    `${opt.sports_day_name} – ${opt.event_name}`,
+                    `${opt.sports_day_name} – ${yg} ${opt.event_name}`,
                     opt.event_id
                 )
             );
@@ -373,8 +382,8 @@
         const rows = sportsDayEvents.map(e => {
             const msgs = warnings[e.id];
             const hasError = msgs.length > 0;
-            console.log(e)
-            console.log(msgs)
+            
+            
             const tooltip = msgs.join(" • ");
 
             const errorClass = hasError
@@ -416,7 +425,7 @@
             `/sportsdays/${sportsdayId}/students`
         ).then(r => r.json());
 
-        const { students, events, participation } = data;
+        const { students, events_by_name, participation } = data;
 
         const thead = document
             .querySelector("#studentsTable")
@@ -424,19 +433,22 @@
             .querySelector("thead tr");
 
         // Rebuild header
+        const eventNames = Object.keys(events_by_name);
+
         thead.innerHTML = `
-            <th>Name</th>
-            <th>House</th>
-            <th>Year</th>
-            ${events.map(e => `<th>${e.name}</th>`).join("")}
+        <th>Name</th>
+        <th>House</th>
+        <th>Year</th>
+        ${eventNames.map(name => `<th>${name}</th>`).join("")}
         `;
+
 
         const tbody = document.getElementById("studentsTable");
         tbody.innerHTML = "";
 
         for (const s of students) {
 
-            console.log(s)
+            
             const issue = issueMap[s.name];
             const tr = document.createElement("tr");
 
@@ -449,21 +461,32 @@
                 <td class="${yearClass}">${s.year}</td>
             `;
 
-            for (const e of events) {
-                const allowed = eventAllowsStudent(e, s);
-                const checked = participation[s.id]?.includes(e.id);
-
-                const cb = document.createElement("input");
-                cb.type = "checkbox";
-                    
-                cb.disabled = !allowed;
-
-                cb.addEventListener("change", () =>
-                    toggleParticipation(e.id, s.id, cb.checked)
-                );
+            for (const eventName of eventNames) {
+                const eventsForName = events_by_name[eventName];
+                const matchedEvent = findMatchingEvent(eventsForName, s.year);
 
                 const td = document.createElement("td");
-                td.appendChild(cb);
+
+                if (!matchedEvent) {
+                    td.textContent = "—";
+                } else {
+                    const checked = participation[s.id]?.includes(matchedEvent.id);
+
+                    const cb = document.createElement("input");
+                    cb.type = "checkbox";
+                    cb.checked = checked;
+
+                    cb.addEventListener("change", () =>
+                        toggleParticipation(
+                            matchedEvent.id,
+                            s.id,
+                            cb.checked
+                        )
+                    );
+
+                    td.appendChild(cb);
+                }
+
                 tr.appendChild(td);
             }
 
@@ -507,13 +530,13 @@
         const warnings = {}; // event_id -> [messages]
         const seen = new Map(); // key -> event_id
 
-        const allowedYears = ageCategoriesToYears(allowedAgeCategories)
         
         for (const e of events) {
             warnings[e.id] = [];
 
+
             // ❌ Invalid year group
-            if (!allowedYears.has(String(e.year_group))) {
+            if (!allowedAgeCategories.has(String(e.year_group))) {
                 warnings[e.id].push(
                     `Year group "${e.year_group}" is not configured for this sports day`
                 );
@@ -656,7 +679,7 @@
         if (!res.ok) {
             const message = await res.text();
             alert(message);
-            console.log(message);   
+            
             return;
         }
 
