@@ -1,0 +1,64 @@
+ <!-- static/event_form.html -->
+<div class="max-w-xl mx-auto bg-white shadow p-6 rounded">
+    <h1 id="formTitle" class="text-xl font-bold mb-4"></h1>
+
+    <form id="eventForm" class="grid gap-3">
+        <input type="hidden" id="sportsday" />
+
+        <label>Name
+            <input id="name" class="border rounded w-full px-3 py-2" required />
+        </label>
+
+        <label>Year Group
+            <select id="year_group" class="border rounded w-full px-3 py-2" required></select>
+        </label>
+
+        <label>Category
+            <select id="category" class="border rounded w-full px-3 py-2">
+                <option value="track">Track</option>
+                <option value="field">Field</option>
+            </select>
+        </label>
+
+        <label>Result Format
+            <select id="result_format" class="border rounded w-full px-3 py-2">
+                <option value="integer">Integer</option>
+                <option value="real">Real</option>
+                <option value="duration">Duration</option>
+            </select>
+        </label>
+
+        <label>Min participants
+            <input id="min" type="number" class="border rounded w-full px-3 py-2" />
+        </label>
+
+        <label>Max participants
+            <input id="max" type="number" class="border rounded w-full px-3 py-2" />
+        </label>
+
+        <label>Min per house
+            <input id="min_house" type="number" class="border rounded w-full px-3 py-2" />
+        </label>
+
+        <label>Max per house
+            <input id="max_house" type="number" class="border rounded w-full px-3 py-2" />
+        </label>
+
+        <label>Scoring cutoff (N)
+            <input id="cutoff" type="number" class="border rounded w-full px-3 py-2" />
+        </label>
+
+        <label>Points for 1st
+            <input id="p1" type="number" class="border rounded w-full px-3 py-2" />
+        </label>
+
+        <label>Points for Nth
+            <input id="pn" type="number" class="border rounded w-full px-3 py-2" />
+        </label>
+
+        <button id="submitBtn"
+                class="bg-blue-600 text-white px-3 py-2 rounded mt-3"
+                type="submit">
+        </button>
+    </form>
+</div>

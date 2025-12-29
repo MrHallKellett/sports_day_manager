@@ -1,17 +1,18 @@
-function populateYearGroupSelect(yearGroups) {
-    const yearGroupSelect = document.getElementById("year_group");
-    
-    // Clear existing options
-    yearGroupSelect.innerHTML = "";
-    
-    // Populate with year groups from settings
-    yearGroups.forEach(yearGroup => {
-        const option = document.createElement("option");
-        option.value = yearGroup;
-        option.textContent = yearGroup;
-        yearGroupSelect.appendChild(option);
-    });
-}
+
+
+function isDigit(string) {
+    // Ensure the input is a single character string first
+    if (typeof string !== 'string') {
+      return false;
+    }
+    for (const char of string) {
+        const code = char.charCodeAt(0);
+        if (!(code >= 48 && code <= 57)) {
+            return false;
+        }
+    }
+    return true;
+  }
 
 function validateForm() {
     // Get all field values

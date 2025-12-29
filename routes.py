@@ -267,6 +267,103 @@ def duplicate_event(sd_id):
 # -----------------------------
 # EVENT PARTICIPANTS
 # -----------------------------
+
+# -----------------------------
+# STUDENTS
+# -----------------------------
+
+@bp.patch("/students/<int:student_id>")
+def update_student(student_id):
+    student = Student.query.get_or_404(student_id)
+    data = request.get_json(force=True)
+
+    allowed_fields = {"name", "house", "year"}
+
+    for key, value in data.items():
+        if key not in allowed_fields:
+            abort(400, f"Field '{key}' cannot be updated")
+
+        if key == "year":
+            try:
+                value = int(value)
+            except ValueError:
+                abort(400, "Year must be a number")
+
+        setattr(student, key, value)
+
+    db.session.commit()
+
+    return ok({
+        "message": "student updated",
+        "id": student.id
+    })
+
+@bp.post("/sportsdays/<int:sd_id>/students")
+def create_student_for_sportsday(sd_id):
+    data = request.get_json(force=True)
+
+    required = {"name", "house", "year"}
+    missing = required - data.keys()
+    if missing:
+        abort(400, f"Missing required field(s): {', '.join(sorted(missing))}")
+
+    try:
+        year = int(data["year"])
+    except ValueError:
+        abort(400, "Year must be a number")
+
+    name = data["name"].strip()
+    house = data["house"].strip()
+
+    if not name or not house:
+        abort(400, "Name and house cannot be empty")
+
+    # -----------------------------
+    # Validate against sports day settings
+    # -----------------------------
+    houses_allowed, years_allowed = get_allowed_houses_and_years(sd_id)
+
+    student_groups = year_to_groups(year)
+    if house not in houses_allowed:
+        abort(400, f"House '{house}' is not configured for this sports day")
+
+    if student_groups.isdisjoint(years_allowed):
+        abort(400, f"Year '{year}' is not allowed for this sports day")
+
+    # -----------------------------
+    # Create student
+    # -----------------------------
+    student = Student(
+        name=name,
+        house=house,
+        year=year
+    )
+    db.session.add(student)
+    db.session.flush()  # ensure ID
+
+    # -----------------------------
+    # Link to sports day
+    # -----------------------------
+    link = SportsDayParticipant(
+        sports_day_id=sd_id,
+        student_id=student.id
+    )
+    db.session.add(link)
+
+    db.session.commit()
+
+    return created({
+        "message": "student created",
+        "student": {
+            "id": student.id,
+            "name": student.name,
+            "house": student.house,
+            "year": student.year
+        }
+    })
+
+
+
 @bp.post("/sportsdays/<int:sd_id>/students/upload")
 def upload_students(sd_id):
     if "file" not in request.files:

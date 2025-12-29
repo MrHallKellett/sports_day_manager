@@ -4,128 +4,27 @@
 <meta charset="UTF-8">
 <title>Create Event</title>
 <script src="https://cdn.tailwindcss.com"></script>
-<script src="/static/scripts/ui_layer.js"></script>
-<script src="/static/scripts/data_fetching_layer.js"></script>
+
 </head>
 
 <body class="bg-gray-100 p-6 min-h-screen">
 
-<div class="max-w-xl mx-auto bg-white shadow p-6 rounded">
+<div id="mount"></div>
 
-    <h1 class="text-xl font-bold mb-4">Create Event</h1>
-
-    <form id="eventForm" class="grid gap-3">
-
-        <input type="hidden" id="sportsday" />
-
-        <label>Name
-            <input id="name" class="border rounded w-full px-3 py-2" required />
-        </label>
-
-        <label>Year Group
-            <select id="year_group" class="border rounded w-full px-3 py-2" required>
-                <!-- Options will be populated dynamically -->
-            </select>
-        </label>
-
-
-        <label>Category
-            <select id="category" class="border rounded w-full px-3 py-2">
-                <option value="track">Track</option>
-                <option value="field">Field</option>
-            </select>
-        </label>
-
-        <label>Result Format
-            <select id="result_format" class="border rounded w-full px-3 py-2">
-                <option value="integer">Integer</option>
-                <option value="real">Real Number</option>
-                <option value="duration">Duration</option>
-            </select>
-        </label>
-
-        <label>Min participants
-            <input id="min" type="number" class="border rounded w-full px-3 py-2" />
-        </label>
-
-        <label>Max participants
-            <input id="max" type="number" class="border rounded w-full px-3 py-2" />
-        </label>
-
-        <label>Min per house
-            <input id="min_house" type="number" class="border rounded w-full px-3 py-2" />
-        </label>
-        
-        <label>Max per house
-            <input id="max_house" type="number" class="border rounded w-full px-3 py-2" />
-        </label>
-
-        <label>Scoring cutoff (N)
-            <input id="cutoff" type="number" class="border rounded w-full px-3 py-2" />
-        </label>
-
-        <label>Points for 1st
-            <input id="p1" type="number" class="border rounded w-full px-3 py-2" />
-        </label>
-
-        <label>Points for Nth
-            <input id="pn" type="number" class="border rounded w-full px-3 py-2" />
-        </label>
-
-        <button class="bg-blue-600 text-white px-3 py-2 rounded mt-3" type="submit">
-            Create Event
-        </button>
-
-    </form>
-
-</div>
+<script src="/static/scripts/api/sportsdays.js"></script>
+<script src="/static/scripts/ui/forms.js"></script>
+<script src="/static/scripts/domain/validation.js"></script>
 
 <script>
-
-    async function initYearGroupDropdown(sportsDayId) {
-        const yearGroups = await loadConfiguredAgeCategories(sportsDayId);
-        populateYearGroupSelect(yearGroups);
-    }
-
-    const urlParams = new URLSearchParams(window.location.search);
-    sports_day_id = urlParams.get("sportsday");
-    document.getElementById("sportsday").value = sports_day_id
-    
-
-    initYearGroupDropdown(sports_day_id);
-    
-    document.getElementById("eventForm").onsubmit = async (e) => {
-        e.preventDefault();
-
-        if (!validateForm())
-        {
-            return;
-        }
-    
-        await fetch("/events", {
-            method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({
-                sports_day_id: parseInt(document.getElementById("sportsday").value),
-                name: document.getElementById("name").value,
-                year_group: document.getElementById("year_group").value,
-                category: document.getElementById("category").value,
-                result_format: document.getElementById("result_format").value,
-                min_participants: parseInt(document.getElementById("min").value),
-                max_participants: parseInt(document.getElementById("max").value),
-                scoring_places: parseInt(document.getElementById("cutoff").value),
-                points_1st: parseInt(document.getElementById("p1").value),
-                points_nth: parseInt(document.getElementById("pn").value),
-                min_per_house: parseInt(document.getElementById("min_house").value),
-                max_per_house: parseInt(document.getElementById("max_house").value)
-            })
-        });
-    
-        alert("Event created.");
-        
-        window.location.href = `/admin/sportsday/${document.getElementById("sportsday").value}`;
-    };
-    </script>
+fetch("/static/event_form.html")
+    .then(r => r.text())
+    .then(html => {
+        document.getElementById("mount").innerHTML = html;
+        const s = document.createElement("script");
+        s.src = "/static/scripts/pages/event_form.js";
+        document.body.appendChild(s);
+    });
+</script>
 
 </body>
 </html>

@@ -1,3 +1,5 @@
+save new student not working -- all year groups rejected
+
 saving requirements should refresh dashboard
 
 add explainer tooltips to form inputs e.g. "Field minimum" - If each student should take part in a minimum number of field events, type a number here. Otherwise leave blank.
