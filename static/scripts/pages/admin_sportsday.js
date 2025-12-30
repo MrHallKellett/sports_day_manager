@@ -10,6 +10,7 @@ import { renderEventsTable } from "../ui/events_table.js"
 import { renderStudentsTable } from "../ui/students_table.js"
 
 import { computeEventWarnings } from "../domain/events.js"
+import { indexIssues } from "../domain/issues.js"
 
 let duplicateLoaded = false;
 

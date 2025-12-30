@@ -1,5 +1,8 @@
 // static/scripts/ui/students_table.js
 
+import { indexIssues } from "../domain/issues.js"
+import { findMatchingEvent } from "../domain/events.js"
+
 export function renderStudentsTable({
     students,
     events_by_name,

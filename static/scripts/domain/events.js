@@ -1,6 +1,8 @@
 // static/scripts/domain/events.js
 
-function findMatchingEvent(eventsForName, studentYear) {
+import { yearToGroups } from "./age_groups.js"
+
+export function findMatchingEvent(eventsForName, studentYear) {
     const studentGroups = yearToGroups(studentYear);
     return eventsForName.find(e =>
         studentGroups.has(String(e.year_group))

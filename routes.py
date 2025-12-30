@@ -159,9 +159,11 @@ def prep_event_payload(events):
     ])
 
 
-@bp.get("/sportsday/<int:sd_id>/events")
+@bp.get("/sportsdays/<int:sd_id>/events")
 def get_events_for_sportsday(sd_id):
     events = Event.query.filter_by(sports_day_id=sd_id).all()
+    
+    
     return prep_event_payload(events)
 
 @bp.get("/events")

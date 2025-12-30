@@ -1,4 +1,4 @@
-function ageCategoriesToYears(ageCategories) {
+export function ageCategoriesToYears(ageCategories) {
     console.log(ageCategories)
     years = new Set()
     for (const ac of ageCategories) {
@@ -22,7 +22,7 @@ function ageCategoriesToYears(ageCategories) {
 
 
 
-function yearToGroups(year) {
+export function yearToGroups(year) {
     const y = Number(year);
     const groups = new Set([String(y)]);
 
