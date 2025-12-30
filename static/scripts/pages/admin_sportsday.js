@@ -1,5 +1,16 @@
 // static/scripts/pages/admin_sportsday.js
 
+import { fetchSportsDay, fetchSportsDaySettings, loadConfiguredAgeCategories } from "../api/sportsdays.js"
+import { fetchStudentsForSportsDay, createStudent, updateStudent } from "../api/students.js"
+import { fetchEvents, toggleParticipation } from "../api/events.js"
+import { loadParticipationSettings, applyYearGroupSettings } from "../ui/sportsday_settings.js"
+import { populateHouseInputs } from "../ui/requirements_form.js"
+
+import { renderEventsTable } from "../ui/events_table.js"
+import { renderStudentsTable } from "../ui/students_table.js"
+
+import { computeEventWarnings } from "../domain/events.js"
+
 let duplicateLoaded = false;
 
 async function loadSportsDay(sportsdayId) {
@@ -15,23 +26,21 @@ async function loadSportsDay(sportsdayId) {
     document.getElementById("createEventBtn").href =
         `/admin/events/new?sportsday=${sportsdayId}`;
 
-    document.getElementById("fieldMin").value = settings.field_min || 0;
-    document.getElementById("trackMin").value = settings.track_min || 0;
-    document.getElementById("overallMax").value = settings.overall_max || 0;
+
+    loadParticipationSettings(settings)
+    applyYearGroupSettings(settings);
+    populateHouseInputs(settings.houses);
 
     await loadEvents(sportsdayId);
     await loadStudents(sportsdayId);
 }
 
 async function loadEvents(sportsdayId) {
-    const [events, allowedAgeCategories] = await Promise.all([
-        fetchAllEvents(),
+    const [sportsDayEvents, allowedAgeCategories] = await Promise.all([
+        fetchEvents(sportsdayId),
         loadConfiguredAgeCategories(sportsdayId)
     ]);
 
-    const sportsDayEvents = events.filter(
-        e => e.sports_day_id === sportsdayId
-    );
 
     const warnings = computeEventWarnings(
         sportsDayEvents,
@@ -76,3 +85,9 @@ window.onToggleParticipation = async (eventId, studentId, on) => {
     const res = await toggleParticipation(eventId, studentId, on);
     if (!res.ok) alert("Unable to update participation");
 };
+
+const sportsdayId = parseInt(
+    window.location.pathname.split("/").pop()
+);
+
+loadSportsDay(sportsdayId);

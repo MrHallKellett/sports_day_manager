@@ -14,59 +14,44 @@ function isDigit(string) {
     return true;
   }
 
-function validateForm() {
-    // Get all field values
-    const name = document.getElementById("name").value.trim();
-    const yearGroup = document.getElementById("year_group").value;
-    const category = document.getElementById("category").value;
-    const resultFormat = document.getElementById("result_format").value;
-    const minParticipants = parseInt(document.getElementById("min").value);
-    const maxParticipants = parseInt(document.getElementById("max").value);
-    const scoringPlaces = parseInt(document.getElementById("cutoff").value);
-    const points1st = parseInt(document.getElementById("p1").value);
-    const pointsNth = parseInt(document.getElementById("pn").value);
+export function validateEvent(data) {
+    const errors = [];
 
-    // Check for blank fields
-    if (!name) {
-        alert("Name cannot be blank.");
-        return false;
-    }
-    if (!yearGroup) {
-        alert("Year Group cannot be blank.");
-        return false;
-    }
-    if (isNaN(minParticipants)) {
-        alert("Min participants cannot be blank.");
-        return false;
-    }
-    if (isNaN(maxParticipants)) {
-        alert("Max participants cannot be blank.");
-        return false;
-    }
-    if (isNaN(scoringPlaces)) {
-        alert("Scoring cutoff N cannot be blank.");
-        return false;
-    }
-    if (isNaN(points1st)) {
-        alert("Points for 1st cannot be blank.");
-        return false;
-    }
-    if (isNaN(pointsNth)) {
-        alert("Points for Nth cannot be blank.");
-        return false;
+    if (!data.name) {
+        errors.push("Name cannot be blank.");
     }
 
-    // Min participants must be at least 2
-    if (minParticipants < 2) {
-        alert("Min participants must be at least 2.");
-        return false;
+    if (!data.year_group) {
+        errors.push("Year Group cannot be blank.");
     }
 
-    // Scoring places can't be more than max participants
-    if (scoringPlaces > maxParticipants) {
-        alert("Scoring cutoff N cannot be more than max participants.");
-        return false;
+    if (Number.isNaN(data.min_participants)) {
+        errors.push("Min participants cannot be blank.");
     }
 
-    return true;
+    if (Number.isNaN(data.max_participants)) {
+        errors.push("Max participants cannot be blank.");
+    }
+
+    if (Number.isNaN(data.scoring_places)) {
+        errors.push("Scoring cutoff N cannot be blank.");
+    }
+
+    if (Number.isNaN(data.points_1st)) {
+        errors.push("Points for 1st cannot be blank.");
+    }
+
+    if (Number.isNaN(data.points_nth)) {
+        errors.push("Points for Nth cannot be blank.");
+    }
+
+    if (data.min_participants < 2) {
+        errors.push("Min participants must be at least 2.");
+    }
+
+    if (data.scoring_places > data.max_participants) {
+        errors.push("Scoring cutoff N cannot be more than max participants.");
+    }
+
+    return errors;
 }

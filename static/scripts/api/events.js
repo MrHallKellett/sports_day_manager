@@ -1,16 +1,27 @@
 // static/scripts/api/events.js
 
-async function fetchAllEvents() {
-    const res = await fetch("/events");
+export async function fetchEvents(sportsDayId=null) {
+    let route = "/events"
+    if (sportsDayId != null) {
+        route = `/sportsdays/${sportsDayId}/events`
+    }
+        
+    const res = await fetch(route)
     if (!res.ok) throw new Error("Failed to load events");
     return res.json();
 }
 
-async function deleteEventById(eventId) {
+export async function fetchEvent(eventId) {
+    const res = await fetch(`/events/${eventId}`);
+    if (!res.ok) throw new Error(`Failed to load event id: ${eventId}`);
+    return res.json();
+}
+
+export async function deleteEventById(eventId) {
     return fetch(`/events/${eventId}`, { method: "DELETE" });
 }
 
-async function duplicateEvent(sportsdayId, sourceEventId) {
+export async function duplicateEvent(sportsdayId, sourceEventId) {
     return fetch(
         `/sportsdays/${sportsdayId}/events/duplicate`,
         {
@@ -21,7 +32,7 @@ async function duplicateEvent(sportsdayId, sourceEventId) {
     );
 }
 
-async function toggleParticipation(eventId, studentId, on) {
+export async function toggleParticipation(eventId, studentId, on) {
     const url = `/events/${eventId}/participants` +
         (on ? "" : `/${studentId}`);
 
@@ -36,7 +47,7 @@ async function toggleParticipation(eventId, studentId, on) {
     return fetch(url, opts);
 }
 
-async function fetchDuplicateOptions() {
+export async function fetchDuplicateOptions() {
     const res = await fetch("/events/duplicate-options");
     if (!res.ok) throw new Error("Failed to load duplicate options");
     return res.json();

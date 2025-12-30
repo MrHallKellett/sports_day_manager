@@ -1,11 +1,11 @@
 // static/scripts/ui/students_table.js
 
-function renderStudentsTable({
+export function renderStudentsTable({
     students,
     events_by_name,
     participation,
     issues = []
-}) {
+    }) {
     const issueMap = indexIssues(issues);
     const eventNames = Object.keys(events_by_name);
 

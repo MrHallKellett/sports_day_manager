@@ -10,20 +10,17 @@
 
 <div id="mount"></div>
 
-<script src="/static/scripts/api/sportsdays.js"></script>
-<script src="/static/scripts/ui/forms.js"></script>
-<script src="/static/scripts/domain/validation.js"></script>
-
+<!-- Load the form HTML -->
 <script>
 fetch("/static/event_form.html")
     .then(r => r.text())
     .then(html => {
         document.getElementById("mount").innerHTML = html;
-        const s = document.createElement("script");
-        s.src = "/static/scripts/pages/event_form.js";
-        document.body.appendChild(s);
     });
 </script>
+
+<!-- ✅ ONE module entry point -->
+<script type="module" src="/static/scripts/pages/event_form.js"></script>
 
 </body>
 </html>

@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Sports Day Management</title>
+<link rel="stylesheet" href="/static/style.css"/>
 <script src="https://cdn.tailwindcss.com"></script>
 
 </head>
@@ -190,31 +191,7 @@
 
 </div>
 
-
-<script src="/static/scripts/domain/age_groups.js"></script>
-<script src="/static/scripts/domain/validation.js"></script>
-<script src="/static/scripts/domain/events.js"></script>
-<script src="/static/scripts/domain/issues.js"></script>
-
-<script src="/static/scripts/api/events.js"></script>
-<script src="/static/scripts/api/sportsdays.js"></script>
-<script src="/static/scripts/api/students.js"></script>
-
-<script src="/static/scripts/ui/events_table.js"></script>
-<script src="/static/scripts/ui/students_table.js"></script>
-<script src="/static/scripts/ui/requirements_form.js"></script>
-<script src="/static/scripts/ui/forms.js"></script>
-
-
-<script src="/static/scripts/pages/admin_sportsday.js"></script>
-
-<script>
-  const sportsdayId = parseInt(
-    window.location.pathname.split("/").pop()
-  );
-
-  loadSportsDay(sportsdayId);
-</script>
+<script type="module" src="/static/scripts/pages/admin_sportsday.js"></script>
 
 
 

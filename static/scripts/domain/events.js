@@ -12,7 +12,7 @@ function eventAllowsStudent(event, student) {
     return studentGroups.has(String(event.year_group));
 }
 
-function computeEventWarnings(events, allowedAgeCategories) {
+export function computeEventWarnings(events, allowedAgeCategories) {
     const warnings = {};        // event_id -> [messages]
     const seen = new Map();     // name::year_group -> event_id
 

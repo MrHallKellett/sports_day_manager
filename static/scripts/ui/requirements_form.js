@@ -22,7 +22,7 @@ function addHouse() {
     
 }
 
-function populateHouseInputs(houses) {
+export function populateHouseInputs(houses) {
     const inputs = document.querySelectorAll("#houseNameContainer input");
     
     // Populate the first two default fields

@@ -1,5 +1,19 @@
+import { validateEvent } from "../domain/validation.js";
+import { showValidationErrors } from "./validation_modal.js";
 
-function populateYearGroupSelect(yearGroups) {
+export function validateEventForm(data) {
+    const errors = validateEvent(data);
+
+    if (errors.length > 0) {
+        showValidationErrors(errors);
+        return false;
+    }
+
+    return true;
+}
+
+
+export function populateYearGroupSelect(yearGroups) {
     const yearGroupSelect = document.getElementById("year_group");
     
     // Clear existing options

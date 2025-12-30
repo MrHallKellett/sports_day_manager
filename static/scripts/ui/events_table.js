@@ -1,6 +1,6 @@
 // static/scripts/ui/events_table.js
 
-function renderEventsTable(events, warnings, sportsdayId) {
+export function renderEventsTable(events, warnings, sportsdayId) {
     const rows = events.map(e => {
         const msgs = warnings[e.id] || [];
         const hasError = msgs.length > 0;

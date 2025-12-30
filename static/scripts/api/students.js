@@ -1,12 +1,12 @@
 // static/scripts/api/students.js
 
-async function fetchStudentsForSportsDay(sportsdayId) {
+export async function fetchStudentsForSportsDay(sportsdayId) {
     const res = await fetch(`/sportsdays/${sportsdayId}/students`);
     if (!res.ok) throw new Error("Failed to load students");
     return res.json();
 }
 
-async function uploadStudentsCsv(sportsdayId, file) {
+export async function uploadStudentsCsv(sportsdayId, file) {
     const form = new FormData();
     form.append("file", file);
 
@@ -18,7 +18,7 @@ async function uploadStudentsCsv(sportsdayId, file) {
 
 /* ✅ NEW */
 
-async function updateStudent(studentId, payload) {
+export async function updateStudent(studentId, payload) {
     return fetch(`/students/${studentId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -26,7 +26,7 @@ async function updateStudent(studentId, payload) {
     });
 }
 
-async function createStudent(sportsdayId, payload) {
+export async function createStudent(sportsdayId, payload) {
     return fetch(`/sportsdays/${sportsdayId}/students`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
