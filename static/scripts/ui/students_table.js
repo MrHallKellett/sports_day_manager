@@ -54,10 +54,15 @@ function renderNewStudentRow(eventNames) {
         i.className = "border rounded px-2 py-1 w-full";
     });
 
+    nameInput.placeholder = "Enter new student name"
+    houseInput.placeholder = "New student house"
+    yearInput.placeholder = "New student year"
+
+
     yearInput.type = "number";
 
     const saveBtn = document.createElement("button");
-    saveBtn.textContent = "Save";
+    saveBtn.textContent = "Save New Student";
     saveBtn.className =
         "bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700";
 

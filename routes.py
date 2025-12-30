@@ -89,11 +89,11 @@ def get_allowed_houses_and_years(sd_id):
     years = set()
     for yg in settings.get("year_groups", []):
         if yg == "KS4":
-            years.update([10, 11])
+            years.update(["10", "11"])
         elif yg == "KS5":
-            years.update([12, 13])
+            years.update(["12", "13"])
         else:
-            years.add(int(yg))
+            years.add(str(yg))
 
     return houses, years
 
@@ -340,6 +340,8 @@ def create_student_for_sportsday(sd_id):
         abort(400, f"House '{house}' is not configured for this sports day")
 
     if student_groups.isdisjoint(years_allowed):
+        print(student_groups)
+        print(years_allowed)
         abort(400, f"Year '{year}' is not allowed for this sports day")
 
     # -----------------------------
