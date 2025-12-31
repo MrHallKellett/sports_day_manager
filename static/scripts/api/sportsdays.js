@@ -20,7 +20,7 @@ export async function fetchSportsDaySettings(sportsdayId) {
 }
 
 export async function updateSportsDayRequirements(sportsdayId, payload) {
-    const res = await fetch("/sportsdays/${sportsdayId}/settings", {
+    const res = await fetch(`/sportsdays/${sportsdayId}/settings`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({payload})

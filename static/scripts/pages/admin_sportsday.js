@@ -5,7 +5,9 @@ import { fetchSportsDay, fetchSportsDaySettings,
 import { fetchStudentsForSportsDay, createStudent, updateStudent } from "../api/students.js"
 import { fetchEvents, toggleParticipation } from "../api/events.js"
 import { loadParticipationSettings, applyYearGroupSettings } from "../ui/sportsday_settings.js"
-import { populateHouseInputs, getSelectedYearGroups, getHouses } from "../ui/requirements_form.js"
+
+import { populateHouseInputs, getSelectedYearGroups,
+         addHouse, getHouses } from "../ui/requirements_form.js"
 
 import { renderEventsTable } from "../ui/events_table.js"
 import { renderStudentsTable } from "../ui/students_table.js"
@@ -78,15 +80,15 @@ async function loadStudents(sportsdayId, issues = []) {
 
 async function onSaveRequirements() {
     const payload = buildRequirementsPayload();
-
+    
     try {
         await updateSportsDayRequirements(
-            window.pageState.sportsDayId,
+            sportsdayId,
             payload
         );
         showToast("Requirements saved");
     } catch (err) {
-        showError("Failed to save requirements");
+        showError(`Failed to save requirements ${err}`);
     }
 }
 
