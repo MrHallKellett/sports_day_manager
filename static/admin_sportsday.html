@@ -102,7 +102,8 @@
           </fieldset>
     </div>
 
-    <button onclick="saveRequirements()" class="mt-3 bg-blue-600 text-white px-3 py-2 rounded">
+    <button id="saveRequirementsBtn"
+            class="mt-3 bg-blue-600 text-white px-3 py-2 rounded">
         Save Requirements
     </button>
 </div>
@@ -154,22 +155,57 @@
     </div>
 
     <!-- STUDENTS SECTION - Add this after the REQUIREMENTS section and before EVENTS LIST -->
-    <div class="bg-white shadow p-4 rounded mb-6">
-        <h2 class="font-semibold mb-3">Students</h2>
-        
-        <!-- CSV Upload -->
-        <div class="mb-4">
-            <input type="file" id="csvFile" accept=".csv" class="hidden" />
-            <button onclick="document.getElementById('csvFile').click()" 
-                    class="bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-700">
-                Upload CSV
-            </button>
-            <span id="csvFileName" class="ml-2 text-sm text-gray-600"></span>
+    <div id="students-section" class="bg-white shadow p-4 rounded mb-6">
+
+        <!-- Header: two columns -->
+        <div class="grid grid-cols-2 gap-6 mb-4">
+
+            <!-- Column 1 -->
+            <div class="flex flex-col justify-between">
+                <h2 class="font-semibold text-lg">Students</h2>
+
+                <!-- CSV Upload -->
+                <div class="mt-4">
+                    <input type="file" id="csvFile" accept=".csv" class="hidden" />
+                    <button
+                        type="button"
+                        onclick="document.getElementById('csvFile').click()"
+                        class="bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-700">
+                        Upload CSV
+                    </button>
+                    <span id="csvFileName"
+                            class="ml-2 text-sm text-gray-600"></span>
+                </div>
+            </div>
+
+            <!-- Column 2 -->
+            <form id="newStudentForm"
+                    class="flex flex-col gap-2 items-end">
+
+                <input id="newStudentName"
+                        class="border rounded px-2 py-1 w-full"
+                        placeholder="Name" />
+
+                <input id="newStudentHouse"
+                        class="border rounded px-2 py-1 w-full"
+                        placeholder="House" />
+
+                <input id="newStudentYear"
+                        type="number"
+                        class="border rounded px-2 py-1 w-24"
+                        placeholder="Year" />
+
+                <button type="submit"
+                        class="mt-2 bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700">
+                    Add New Student
+                </button>
+            </form>
         </div>
 
-        <div id="uploadWarnings" class="hidden warning-box"></div>
-        
-        <!-- Students Table -->
+        <!-- Upload warnings -->
+        <div id="uploadWarnings" class="hidden warning-box mb-4"></div>
+
+        <!-- Students Table (full width) -->
         <div class="overflow-x-auto">
             <table class="min-w-full text-sm">
                 <thead>
@@ -182,7 +218,10 @@
                 </thead>
                 <tbody id="studentsTable">
                     <tr>
-                        <td colspan="4" class="py-4 text-center text-gray-500">No students loaded</td>
+                        <td colspan="4"
+                            class="py-4 text-center text-gray-500">
+                            No students loaded
+                        </td>
                     </tr>
                 </tbody>
             </table>

@@ -27,8 +27,7 @@ export function renderStudentsTable({
     const tbody = document.getElementById("studentsTable");
     tbody.innerHTML = "";
 
-    /* ✅ New student input row */
-    tbody.appendChild(renderNewStudentRow(eventNames));
+
 
     /* ✅ Existing students */
     for (const s of students) {
@@ -42,57 +41,6 @@ export function renderStudentsTable({
 /* New student row                */
 /* ------------------------------ */
 
-function renderNewStudentRow(eventNames) {
-    const tr = document.createElement("tr");
-    tr.classList.add("bg-gray-50");
-
-    const nameInput = document.createElement("input");
-    const houseInput = document.createElement("input");
-    const yearInput = document.createElement("input");
-
-    [nameInput, houseInput, yearInput].forEach(i => {
-        i.className = "border rounded px-2 py-1 w-full";
-    });
-
-    nameInput.placeholder = "Enter new student name"
-    houseInput.placeholder = "New student house"
-    yearInput.placeholder = "New student year"
-
-
-    yearInput.type = "number";
-
-    const saveBtn = document.createElement("button");
-    saveBtn.textContent = "Save New Student";
-    saveBtn.className =
-        "bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700";
-
-    saveBtn.addEventListener("click", async () => {
-        const payload = {
-            name: nameInput.value.trim(),
-            house: houseInput.value.trim(),
-            year: parseInt(yearInput.value)
-        };
-
-        if (!payload.name || !payload.house || !payload.year) {
-            alert("Please fill in all fields");
-            return;
-        }
-
-        await window.onCreateStudent(payload);
-    });
-
-    tr.innerHTML = `
-        <td></td><td></td><td></td>
-        ${eventNames.map(() => `<td></td>`).join("")}
-    `;
-
-    tr.children[0].appendChild(nameInput);
-    tr.children[1].appendChild(houseInput);
-    tr.children[2].appendChild(yearInput);
-    tr.children[3].appendChild(saveBtn);
-
-    return tr;
-}
 
 /* ------------------------------ */
 /* Existing student row           */

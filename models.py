@@ -70,22 +70,31 @@ class SportsDaySetting(db.Model):
     sports_day_id = db.Column(db.Integer, primary_key=True)
 
 
+from sqlalchemy import Index, func
 
 class Student(db.Model):
     __tablename__ = "students"
+
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String, nullable=False)
     year = db.Column(db.Integer, nullable=False)
     house = db.Column(db.String, nullable=False)
     email = db.Column(db.String, nullable=True)
+
     sports_days = db.relationship(
         "SportsDayParticipant",
         backref="student",
         cascade="all, delete-orphan"
     )
-    
 
-
+    __table_args__ = (
+        Index(
+            "uq_student_name_year",
+            func.lower(name),
+            year,
+            unique=True
+        ),
+    )
 
 
 class EventParticipant(db.Model):

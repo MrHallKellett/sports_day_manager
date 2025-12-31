@@ -310,8 +310,8 @@ def update_student(student_id):
         "id": student.id
     })
 
-@bp.post("/sportsdays/<int:sd_id>/students")
-def create_student_for_sportsday(sd_id):
+@bp.post("/students")
+def create_student():
     data = request.get_json(force=True)
 
     required = {"name", "house", "year"}
@@ -331,18 +331,27 @@ def create_student_for_sportsday(sd_id):
         abort(400, "Name and house cannot be empty")
 
     # -----------------------------
-    # Validate against sports day settings
+    # Global uniqueness check
     # -----------------------------
-    houses_allowed, years_allowed = get_allowed_houses_and_years(sd_id)
+    existing = (
+        db.session.query(Student)
+        .filter(
+            db.func.lower(Student.name) == name.lower(),
+            Student.year == year
+        )
+        .one_or_none()
+    )
 
-    student_groups = year_to_groups(year)
-    if house not in houses_allowed:
-        abort(400, f"House '{house}' is not configured for this sports day")
-
-    if student_groups.isdisjoint(years_allowed):
-        print(student_groups)
-        print(years_allowed)
-        abort(400, f"Year '{year}' is not allowed for this sports day")
+    if existing:
+        return ok({
+            "message": "student already exists",
+            "student": {
+                "id": existing.id,
+                "name": existing.name,
+                "house": existing.house,
+                "year": existing.year
+            }
+        })
 
     # -----------------------------
     # Create student
@@ -352,18 +361,8 @@ def create_student_for_sportsday(sd_id):
         house=house,
         year=year
     )
+
     db.session.add(student)
-    db.session.flush()  # ensure ID
-
-    # -----------------------------
-    # Link to sports day
-    # -----------------------------
-    link = SportsDayParticipant(
-        sports_day_id=sd_id,
-        student_id=student.id
-    )
-    db.session.add(link)
-
     db.session.commit()
 
     return created({
@@ -376,6 +375,64 @@ def create_student_for_sportsday(sd_id):
         }
     })
 
+@bp.post("/sportsdays/<int:sd_id>/students")
+def add_student_to_sportsday(sd_id):
+    data = request.get_json(force=True)
+
+    if "student_id" not in data:
+        abort(400, "Missing required field: student_id")
+
+    student_id = data["student_id"]
+
+    student = db.session.get(Student, student_id)
+    if not student:
+        abort(404, "Student not found")
+
+    # -----------------------------
+    # Validate against sports day settings
+    # -----------------------------
+    houses_allowed, years_allowed = get_allowed_houses_and_years(sd_id)
+
+    student_groups = year_to_groups(student.year)
+
+    if student.house not in houses_allowed:
+        abort(400, f"House '{student.house}' is not configured for this sports day")
+
+    if student_groups.isdisjoint(years_allowed):
+        abort(400, f"Year '{student.year}' is not allowed for this sports day")
+
+    # -----------------------------
+    # Prevent duplicate participation
+    # -----------------------------
+    existing_link = (
+        db.session.query(SportsDayParticipant)
+        .filter_by(
+            sports_day_id=sd_id,
+            student_id=student.id
+        )
+        .one_or_none()
+    )
+
+    if existing_link:
+        return ok({
+            "message": "student already participating"
+        })
+
+    # -----------------------------
+    # Link student to sports day
+    # -----------------------------
+    link = SportsDayParticipant(
+        sports_day_id=sd_id,
+        student_id=student.id
+    )
+
+    db.session.add(link)
+    db.session.commit()
+
+    return created({
+        "message": "student added to sports day",
+        "student_id": student.id
+    })
 
 
 @bp.post("/sportsdays/<int:sd_id>/students/upload")

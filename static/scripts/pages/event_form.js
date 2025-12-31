@@ -2,6 +2,7 @@ import { validateEventForm, populateYearGroupSelect } from "../ui/form_validatio
 import { loadConfiguredAgeCategories } from "../api/sportsdays.js";
 import { displayExistingEventData, initCreate } from "../ui/event_form.js";
 import { fetchEvent } from "../api/events.js";
+import { getValue } from "./helpers.js"
 
 let mode = "create";
 let eventId = null;
@@ -18,11 +19,9 @@ async function initYearGroups(sportsDayId) {
 }
 
 
-function getValue(id) {
-    return document.getElementById(id).value;
-}
 
-function buildPayload() {
+
+function buildEventPayload() {
     return {
         name: getValue("name"),
         year_group: getValue("year_group"),
@@ -51,7 +50,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         e.preventDefault();
 
         const sportsDayId = getValue("sportsday");
-        const payload = buildPayload();
+        const payload = buildEventPayload();
 
         if (!validateEventForm(payload)) return;
 

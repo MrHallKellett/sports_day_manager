@@ -1,4 +1,4 @@
-function addHouse() {
+export function addHouse() {
     const houseNames = document.getElementById("houseNameContainer");
     
     
@@ -44,7 +44,7 @@ export function populateHouseInputs(houses) {
 
 // static/scripts/ui/forms.js
 
-function getHouses() {
+export function getHouses() {
     return Array.from(
         document.querySelectorAll("#houseNameContainer input")
     )
@@ -52,7 +52,7 @@ function getHouses() {
         .filter(Boolean);
 }
 
-function getSelectedYearGroups() {
+export function getSelectedYearGroups() {
     const selected = [];
 
     document
@@ -73,3 +73,4 @@ function getSelectedYearGroups() {
 
     return selected;
 }
+

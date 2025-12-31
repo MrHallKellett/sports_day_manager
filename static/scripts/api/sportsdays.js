@@ -18,3 +18,14 @@ export async function fetchSportsDaySettings(sportsdayId) {
     if (!res.ok) throw new Error("Failed to load settings");
     return res.json();
 }
+
+export async function updateSportsDayRequirements(sportsdayId, payload) {
+    const res = await fetch("/sportsdays/${sportsdayId}/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({payload})
+        }
+    );
+    if (!res.ok) throw new Error("Failed to save requirements");
+    return res.json();
+}
