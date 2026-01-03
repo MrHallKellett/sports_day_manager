@@ -1,5 +1,4 @@
-// static/scripts/ui/event_form.js
-
+import { initYearGroups } from "../pages/event_form.js"
 
 
 
@@ -33,3 +32,5 @@ export async function initCreate() {
 
     await initYearGroups(sd);
 }
+
+

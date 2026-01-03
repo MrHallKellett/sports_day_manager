@@ -30,6 +30,7 @@ export function showModal({ title, bodyHtml }) {
     `;
 
     document.getElementById("modalCloseBtn").onclick = closeModal;
+    console.log(modalRoot.querySelector(".bg-black\\/40"))
     modalRoot.querySelector(".bg-black\\/40").onclick = closeModal;
     document.addEventListener("keydown", escHandler);
 }

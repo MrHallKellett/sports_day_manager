@@ -17,6 +17,10 @@ function isDigit(string) {
 export function validateEvent(data) {
     const errors = [];
 
+    console.log("\n\n\n\n\n\n\n\n\n\n\n\n\n") 
+
+    console.log(data)
+
     if (!data.name) {
         errors.push("Name cannot be blank.");
     }

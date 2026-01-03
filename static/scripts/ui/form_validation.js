@@ -1,11 +1,12 @@
 import { validateEvent } from "../domain/validation.js";
-import { showValidationErrors } from "./validation_modal.js";
+import { showErrors } from "./feedback.js";
 
 export function validateEventForm(data) {
     const errors = validateEvent(data);
-
+    console.log(errors)
+    
     if (errors.length > 0) {
-        showValidationErrors(errors);
+        showErrors(errors);
         return false;
     }
 

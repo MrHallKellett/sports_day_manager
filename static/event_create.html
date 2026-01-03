@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <title>Create Event</title>
+<link rel="stylesheet" href="/static/style.css"/>
 <script src="https://cdn.tailwindcss.com"></script>
 
 </head>
@@ -11,28 +12,20 @@
 
 <div id="mount"></div>
 
-<script src="/static/scripts/api/sportsdays.js"></script>
 
 
-<script src="/static/scripts/ui/event_form.js"></script>
-<script src="/static/scripts/ui/modal.js"></script>
-<script type="module" src="/static/scripts/ui/form_validation.js"></script>
-
-<script src="/static/scripts/pages/event_form.js"></script>
-
-
-<script src="/static/scripts/domain/validation.js"></script>
 
 <script>
 fetch("/static/event_form.html")
     .then(r => r.text())
     .then(html => {
         document.getElementById("mount").innerHTML = html;
-        const s = document.createElement("script");
-        s.src = "/static/scripts/pages/event_form.js";
-        document.body.appendChild(s);
     });
 </script>
+
+<!-- ✅ ONE module entry point -->
+<script type="module" src="/static/scripts/pages/event_form.js"></script>
+
 
 </body>
 </html>

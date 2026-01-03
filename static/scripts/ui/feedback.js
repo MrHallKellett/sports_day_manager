@@ -13,3 +13,16 @@ export function showSuccess(message, options = {}) {
         bodyHtml: `<p>${message}</p>`,
     });
 }
+
+export function showErrors(errors) {
+    const list = `
+        <ul class="list-disc pl-5 space-y-1">
+            ${errors.map(e => `<li>${e}</li>`).join("")}
+        </ul>
+    `;
+
+    showModal({
+        title: "Please fix the following",
+        bodyHtml: list
+    });
+}

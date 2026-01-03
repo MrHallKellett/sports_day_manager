@@ -13,7 +13,8 @@ export async function loadEventForEdit(eventId) {
     await displayExistingEventData(e);
 }
 
-async function initYearGroups(sportsDayId) {
+
+export async function initYearGroups(sportsDayId) {
     const yearGroups = await loadConfiguredAgeCategories(sportsDayId);
     populateYearGroupSelect(yearGroups);
 }
@@ -44,6 +45,8 @@ function buildEventPayload() {
 
 document.addEventListener("DOMContentLoaded", async () => {
     const form = document.getElementById("eventForm");
+    console.log("submitting")
+    console.log("form found?", !!document.getElementById("eventForm"));
     if (!form) return;
 
     form.onsubmit = async e => {
@@ -51,9 +54,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         const sportsDayId = getValue("sportsday");
         const payload = buildEventPayload();
-
+        console.log("Before cal")
         if (!validateEventForm(payload)) return;
-
+        console.log("here")
         const url = mode === "create"
             ? "/events"
             : `/events/${eventId}`;
@@ -82,3 +85,4 @@ document.addEventListener("DOMContentLoaded", async () => {
         initCreate();
     }
 });
+
