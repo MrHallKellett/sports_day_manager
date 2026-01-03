@@ -117,6 +117,7 @@ def update_settings(sd_id):
     data = request.get_json(force=True)
 
     for key, value in data.items():
+        print(f"setting {key} to {value}")
         row = SportsDaySetting.query.filter_by(
             sports_day_id=sd_id,
             key=key

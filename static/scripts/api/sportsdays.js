@@ -23,7 +23,7 @@ export async function updateSportsDayRequirements(sportsdayId, payload) {
     const res = await fetch(`/sportsdays/${sportsdayId}/settings`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({payload})
+        body: JSON.stringify(payload)
         }
     );
     if (!res.ok) throw new Error("Failed to save requirements");
