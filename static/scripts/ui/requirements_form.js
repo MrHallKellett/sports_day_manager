@@ -1,7 +1,6 @@
 export function addHouse() {
     const houseNames = document.getElementById("houseNameContainer");
     
-    
     // Count existing houses to determine the next house number
     const houseCount = houseNames.children.length + 1;
     

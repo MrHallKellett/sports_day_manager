@@ -6,8 +6,7 @@ import { fetchStudentsForSportsDay, createStudent, updateStudent } from "../api/
 import { fetchEvents, toggleParticipation } from "../api/events.js"
 import { loadParticipationSettings, applyYearGroupSettings } from "../ui/sportsday_settings.js"
 
-import { populateHouseInputs, getSelectedYearGroups,
-         addHouse, getHouses } from "../ui/requirements_form.js"
+import { populateHouseInputs, getSelectedYearGroups, addHouse, getHouses } from "../ui/requirements_form.js"
 
 import { renderEventsTable } from "../ui/events_table.js"
 import { renderStudentsTable } from "../ui/students_table.js"
@@ -165,6 +164,10 @@ const sportsdayId = parseInt(
 loadSportsDay(sportsdayId);
 
 document.addEventListener("DOMContentLoaded", () => {
-    const btn = document.getElementById("saveRequirementsBtn");
-    btn.addEventListener("click", onSaveRequirements);
+    const saveReqsBtn = document.getElementById("saveRequirementsBtn");
+    saveReqsBtn.addEventListener("click", onSaveRequirements);
+    const addHouseBtn = document.getElementById("addHouseBtn");
+    addHouseBtn.addEventListener("click", addHouse);
+
 });
+
