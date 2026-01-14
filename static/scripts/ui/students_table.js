@@ -15,7 +15,8 @@ export function renderStudentsTable({
     participation,
     issues = [],
     settings,
-    event_participation_counts
+    event_participation_counts = {}, // Default to empty object
+    events_by_id = {} // Default to empty object
     }) {
     const issueMap = indexIssues(issues);
     const eventNames = Object.keys(events_by_name);
@@ -47,13 +48,18 @@ export function renderStudentsTable({
     /* ✅ Existing students */
     for (const s of students) {
         tbody.appendChild(
-            renderStudentRow(s, students, eventNames, events_by_name, participation, issueMap, settings, event_participation_counts)
+            renderStudentRow(s, students, eventNames, events_by_name, participation, issueMap, settings, event_participation_counts, events_by_id)
         );
     }
 
     filterRow.addEventListener("input", applyFilters);
     headerRow.addEventListener("click", handleSort);
     document.getElementById("showHighlightsBtn").addEventListener("click", toggleHighlights);
+
+    // If highlights are currently active, re-apply them to the new rows
+    if (document.body.classList.contains('show-row-highlights')) {
+        applyHighlights();
+    }
 }
 
 /* ------------------------------ */
@@ -73,19 +79,19 @@ function renderStudentRow(
     participation,
     issueMap,
     settings,
-    event_participation_counts
+    event_participation_counts,
+    events_by_id
 ) {
     const issue = issueMap[student.name];
     const tr = document.createElement("tr");
     tr.dataset.studentId = student.id;
-
-    const status = calculateStudentStatus(student, participation[student.id] || [], settings, events_by_name, event_participation_counts);
+    const status = calculateStudentStatus(student, participation[student.id] || [], settings, events_by_name, event_participation_counts, events_by_id);
     tr.dataset.highlightStatus = status;
 
     // Create Name, House, and Year cells as non-editable text initially
-    const nameTd = createStudentInfoCell(student.name, () => makeCellEditable(nameTd, student, 'name', settings, events_by_name, participation, event_participation_counts));
-    const houseTd = createStudentInfoCell(student.house, () => makeCellEditable(houseTd, student, 'house', settings, events_by_name, participation, event_participation_counts));
-    const yearTd = createStudentInfoCell(student.year, () => makeCellEditable(yearTd, student, 'year', settings, events_by_name, participation, event_participation_counts));
+    const nameTd = createStudentInfoCell(student.name, () => makeCellEditable(nameTd, student, 'name', settings, events_by_name, participation, event_participation_counts, events_by_id));
+    const houseTd = createStudentInfoCell(student.house, () => makeCellEditable(houseTd, student, 'house', settings, events_by_name, participation, event_participation_counts, events_by_id));
+    const yearTd = createStudentInfoCell(student.year, () => makeCellEditable(yearTd, student, 'year', settings, events_by_name, participation, event_participation_counts, events_by_id));
 
     if (issue?.house_invalid) houseTd.classList.add("cell-warning");
     if (issue?.year_invalid) yearTd.classList.add("cell-warning");
@@ -140,9 +146,9 @@ function renderStudentRow(
                     if (document.body.classList.contains('show-row-highlights')) {
                         document.querySelectorAll('#studentsTable tr').forEach(row => {
                             const studentId = parseInt(row.dataset.studentId);
-                            const studentData = students.find(s => s.id === studentId);
+                            const studentData = students.find(s => s.id === studentId); // students is from closure
                             if (studentData) {
-                                updateRowHighlight(row, studentData, participation, settings, events_by_name, event_participation_counts);
+                                updateRowHighlight(row, studentData, participation, settings, events_by_name, event_participation_counts, events_by_id);
                             }
                         });
                     }
@@ -166,7 +172,7 @@ function createStudentInfoCell(text, onDoubleClick) {
     return td;
 }
 
-function makeCellEditable(td, student, field, settings, events_by_name, participation, event_participation_counts) {
+function makeCellEditable(td, student, field, settings, events_by_name, participation, event_participation_counts, events_by_id) {
     const originalValue = td.textContent;
     const tr = td.closest('tr');
     td.innerHTML = ''; // Clear the cell
@@ -219,12 +225,12 @@ function makeCellEditable(td, student, field, settings, events_by_name, particip
 
             if (res.ok) {
                 // Recalculate and apply the new status
-                updateRowHighlight(tr, student, participation, settings, events_by_name, event_participation_counts);
+                updateRowHighlight(tr, student, participation, settings, events_by_name, event_participation_counts, events_by_id);
             } else {
                 // Revert on failure
                 student[field] = oldStudentData[field]; // Revert student object
                 td.textContent = originalValue;
-                updateRowHighlight(tr, student, participation, settings, events_by_name, event_participation_counts);
+                updateRowHighlight(tr, student, participation, settings, events_by_name, event_participation_counts, events_by_id);
             }
         } else {
             revert();
@@ -246,8 +252,8 @@ function makeCellEditable(td, student, field, settings, events_by_name, particip
     });
 }
 
-function updateRowHighlight(tr, student, participation, settings, eventsByName, event_participation_counts) {
-    const newStatus = calculateStudentStatus(student, participation[student.id] || [], settings, eventsByName, event_participation_counts);
+function updateRowHighlight(tr, student, participation, settings, eventsByName, event_participation_counts, events_by_id) {
+    const newStatus = calculateStudentStatus(student, participation[student.id] || [], settings, eventsByName, event_participation_counts, events_by_id);
     tr.dataset.highlightStatus = newStatus;
 
     // If highlights are currently active, update the class
@@ -259,7 +265,7 @@ function updateRowHighlight(tr, student, participation, settings, eventsByName, 
     }
 }
 
-function calculateStudentStatus(student, participationIds, settings, eventsByName, event_participation_counts) {
+function calculateStudentStatus(student, participationIds, settings, eventsByName, event_participation_counts, events_by_id) {
     const allowedHouses = new Set(settings.houses || []);
     const allowedYears = new Set();
     (settings.year_groups || []).forEach(yg => {
@@ -273,10 +279,9 @@ function calculateStudentStatus(student, participationIds, settings, eventsByNam
     if (!allowedHouses.has(student.house)) return 'error';
     if (!allowedYears.has(String(student.year))) return 'error';
 
-    const allEvents = Object.values(eventsByName).flat();
     // --- Red/Error Check for House Quota ---
     for (const eventId of participationIds) {
-        const event = allEvents.find(e => e.id === eventId);
+        const event = events_by_id[eventId];
         if (event && event.max_per_house > 0) {
             const houseCount = event_participation_counts[eventId]?.[student.house] || 0;
             if (houseCount > event.max_per_house) {
@@ -290,8 +295,8 @@ function calculateStudentStatus(student, participationIds, settings, eventsByNam
     let fieldCount = 0;
 
     participationIds.forEach(eventId => {
-        const event = allEvents.find(e => e.id === eventId);
-        if (event) {
+        const event = events_by_id[eventId];
+        if (event && event.category) {
             if (event.category === 'track') trackCount++;
             if (event.category === 'field') fieldCount++;
         }

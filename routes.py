@@ -1,7 +1,6 @@
 from flask import Blueprint, request, jsonify, abort, send_from_directory
 from database import db
-from models import Event, SportsDay, SportsDayParticipant, Student, Settings, \
-                   EventParticipant, SportsDaySetting
+from models import Event, SportsDay, SportsDayParticipant, Student, Settings, EventParticipant, SportsDaySetting, StaffMember
 
 
 bp = Blueprint("routes", __name__)
@@ -10,6 +9,8 @@ from flask import Flask, request, jsonify, send_from_directory, abort
 from flask_sqlalchemy import SQLAlchemy
 from config import *
 from utils import *
+import random
+import string
 
 import os
 
@@ -308,6 +309,52 @@ def duplicate_event(sd_id):
         "new_event_id": new_event.id
     })
 
+
+# -----------------------------
+# STAFF
+# -----------------------------
+
+def generate_code(length=6):
+    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=length))
+
+@bp.get("/staff")
+def list_staff():
+    staff = StaffMember.query.all()
+    return ok([s.to_dict() for s in staff])
+
+@bp.post("/staff")
+def create_staff():
+    data = request.json
+    if not data.get("name"):
+        abort(400, "Staff member name is required.")
+
+    # Generate a unique sign-in code
+    while True:
+        code = generate_code()
+        if not StaffMember.query.filter_by(sign_in_code=code).first():
+            break
+
+    new_staff = StaffMember(
+        name=data["name"],
+        roles=data.get("roles", []),
+        assigned_classes=data.get("assigned_classes", []),
+        assigned_events=data.get("assigned_events", []),
+        sign_in_code=code
+    )
+    db.session.add(new_staff)
+    db.session.commit()
+    return created(new_staff.to_dict())
+
+@bp.patch("/staff/<int:staff_id>")
+def update_staff(staff_id):
+    staff = StaffMember.query.get_or_404(staff_id)
+    data = request.json
+    for key, value in data.items():
+        if hasattr(staff, key):
+            setattr(staff, key, value)
+    db.session.commit()
+    return ok(staff.to_dict())
+
 # -----------------------------
 # EVENT PARTICIPANTS
 # -----------------------------
@@ -603,6 +650,16 @@ def get_students(sd_id):
     for p in participants:
         participation.setdefault(p.student_id, set()).add(p.event_id)
 
+    # Fetch full event objects for all events students are participating in.
+    # This is crucial for getting the category of events that might not be in the
+    # current sports day's `events_by_name` list.
+    all_participant_event_ids = {p.event_id for p in participants}
+    all_participant_events = Event.query.filter(Event.id.in_(all_participant_event_ids)).all()
+    events_by_id = {
+        e.id: {"id": e.id, "category": e.category, "max_per_house": e.max_per_house}
+        for e in all_participant_events
+    }
+
     # Pre-calculate house participation counts for each event
     # event_id -> house_name -> count
     student_house_map = {s.id: s.house for s in students}
@@ -645,6 +702,7 @@ def get_students(sd_id):
         "participation": {
             str(k): list(v) for k, v in participation.items()
         },
+        "events_by_id": events_by_id,
         "event_participation_counts": {str(k): v for k, v in event_participation_counts.items()}
     })
 

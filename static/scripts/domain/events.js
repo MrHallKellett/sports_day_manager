@@ -1,16 +1,22 @@
 // static/scripts/domain/events.js
 
-import { yearToGroups } from "./age_groups.js"
+import { getApplicableGroups } from "./age_groups.js"
 
 export function findMatchingEvent(eventsForName, studentYear) {
-    const studentGroups = yearToGroups(studentYear);
-    return eventsForName.find(e =>
-        studentGroups.has(String(e.year_group))
-    );
+    const studentEligibleGroups = getApplicableGroups(studentYear);
+
+    return eventsForName.find(event => {
+        const eventApplicableGroups = getApplicableGroups(event.year_group);
+        // Check for any intersection between the two sets.
+        for (const group of studentEligibleGroups) {
+            if (eventApplicableGroups.has(group)) return true;
+        }
+        return false;
+    });
 }
 
 function eventAllowsStudent(event, student) {
-    const studentGroups = yearToGroups(student.year);
+    const studentGroups = getApplicableGroups(student.year);
     return studentGroups.has(String(event.year_group));
 }
 

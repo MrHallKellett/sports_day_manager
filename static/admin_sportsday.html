@@ -229,6 +229,57 @@
         </div>
     </div>
 
+    <!-- STAFF SECTION -->
+    <div id="staff-section" class="bg-white shadow p-4 rounded mb-6">
+        <h2 class="font-semibold text-lg mb-4">Staff Management</h2>
+
+        <!-- Add New Staff Form -->
+        <form id="newStaffForm" class="mb-6 border-b pb-6">
+            <h3 class="font-semibold mb-2">Add New Staff Member</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- Name and Roles -->
+                <div>
+                    <label for="newStaffName" class="block text-sm font-medium text-gray-700">Staff Member Name</label>
+                    <input type="text" id="newStaffName" class="mt-1 block w-full border rounded px-3 py-2" required>
+
+                    <fieldset class="mt-4">
+                        <legend class="text-sm font-medium text-gray-700">Roles</legend>
+                        <div class="mt-2 space-y-2">
+                            <label class="flex items-center"><input type="checkbox" id="roleFormTutor" value="Form Tutor" class="mr-2"> Form Tutor</label>
+                            <label class="flex items-center"><input type="checkbox" id="roleEventSteward" value="Event Steward" class="mr-2"> Event Steward</label>
+                        </div>
+                    </fieldset>
+                </div>
+
+                <!-- Assignments -->
+                <div>
+                    <div id="formTutorAssignments" class="hidden">
+                        <label for="assignClasses" class="block text-sm font-medium text-gray-700">Assign Classes</label>
+                        <select id="assignClasses" multiple class="mt-1 block w-full border rounded px-3 py-2 h-24"></select>
+                    </div>
+                    <div id="eventStewardAssignments" class="hidden mt-4">
+                        <label for="assignEvents" class="block text-sm font-medium text-gray-700">Assign Events</label>
+                        <select id="assignEvents" multiple class="mt-1 block w-full border rounded px-3 py-2 h-24"></select>
+                    </div>
+                </div>
+            </div>
+            <button type="submit" class="mt-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Add Staff Member</button>
+        </form>
+
+        <!-- Staff Table -->
+        <div class="overflow-auto h-[40vh] border rounded">
+            <table class="min-w-full text-sm">
+                <thead>
+                    <tr id="staff-header-row" class="text-left border-b"></tr>
+                    <tr id="staff-filter-row" class="text-left border-b"></tr>
+                </thead>
+                <tbody id="staffTable">
+                    <tr><td colspan="5" class="py-4 text-center text-gray-500">Loading staff...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
 </div>
 
 <div id="toast-container"></div>

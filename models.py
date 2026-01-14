@@ -131,3 +131,15 @@ class SportsDayParticipant(db.Model):
     __table_args__ = (
         db.UniqueConstraint("sports_day_id", "student_id"),
     )
+
+class StaffMember(db.Model):
+    __tablename__ = "staff_members"
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String, nullable=False)
+    sign_in_code = db.Column(db.String, unique=True, nullable=False)
+    roles = db.Column(JSON, nullable=False, default=[])
+    assigned_classes = db.Column(JSON, nullable=True, default=[])
+    assigned_events = db.Column(JSON, nullable=True, default=[])
+
+    def to_dict(self):
+        return {"id": self.id, "name": self.name, "sign_in_code": self.sign_in_code, "roles": self.roles, "assigned_classes": self.assigned_classes, "assigned_events": self.assigned_events}

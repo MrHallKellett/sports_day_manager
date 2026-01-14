@@ -22,12 +22,22 @@ export function ageCategoriesToYears(ageCategories) {
 
 
 
-export function yearToGroups(year) {
-    const y = Number(year);
-    const groups = new Set([String(y)]);
-
-    if (y === 10 || y === 11) groups.add("KS4");
-    if (y === 12 || y === 13) groups.add("KS5");
-
+/**
+ * Gets all applicable groups for a given year or key stage.
+ * e.g., 11 -> {"11", "KS4"}
+ * e.g., "KS4" -> {"10", "11", "KS4"}
+ * @param {string|number} yearOrGroup - The year or key stage.
+ * @returns {Set<string>} A set of applicable groups.
+ */
+export function getApplicableGroups(yearOrGroup) {
+    const input = String(yearOrGroup);
+    const groups = new Set([input]);
+    
+    if (input === "10" || input === "11" || input === "KS4") {
+        groups.add("10").add("11").add("KS4");
+    }
+    if (input === "12" || input === "13" || input === "KS5") {
+        groups.add("12").add("13").add("KS5");
+    }
     return groups;
 }

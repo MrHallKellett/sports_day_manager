@@ -3,6 +3,7 @@
 import { fetchSportsDay, fetchSportsDaySettings,
          updateSportsDayRequirements, loadConfiguredAgeCategories, addStudentToSportsDay } from "../api/sportsdays.js"
 import { fetchStudentsForSportsDay, createStudent, updateStudent } from "../api/students.js"
+import { fetchStaff, createStaff as createNewStaff } from "../api/staff_table.js";
 import { fetchEvents, toggleParticipation } from "../api/events.js"
 import { loadParticipationSettings, applyYearGroupSettings } from "../ui/sportsday_settings.js"
 
@@ -10,6 +11,7 @@ import { populateHouseInputs, getSelectedYearGroups, addHouse, getHouses } from 
 
 import { renderEventsTable } from "../ui/events_table.js"
 import { renderStudentsTable } from "../ui/students_table.js"
+import { setupStaffForm, renderStaffTable } from "../ui/staff_table.js"
 
 import { computeEventWarnings } from "../domain/events.js";
 import { indexIssues } from "../domain/issues.js";
@@ -54,6 +56,7 @@ async function loadSportsDay(sportsdayId) {
 
     await loadEvents(sportsdayId);
     await loadStudents(sportsdayId, settings);
+    await loadStaffSection(settings);
 }
 
 async function loadEvents(sportsdayId) {
@@ -97,11 +100,33 @@ async function onSaveRequirements() {
         // Re-populate dropdowns and refresh tables to show new state
         populateNewStudentDropdowns(payload);
         await loadEvents(sportsdayId);
-        await loadStudents(sportsdayId, payload);
+        // We need to refetch settings to get the full object for loadStudents
+        const newSettings = await fetchSportsDaySettings(sportsdayId);
+        await loadStudents(sportsdayId, newSettings);
 
     } catch (err) {
         showError(`Failed to save requirements ${err}`);
     }
+}
+
+async function loadStaffSection(settings) {
+    try {
+        const [staff, events] = await Promise.all([
+            fetchStaff(),
+            fetchEvents(sportsdayId)
+        ]);
+        renderStaffTable(staff, events);
+        setupStaffForm(settings, events, onAddStaff);
+    } catch (error) {
+        showError(`Failed to load staff section: ${error.message}`);
+    }
+}
+
+async function onAddStaff(payload) {
+    const newStaff = await createNewStaff(payload);
+    showToast(`Staff member ${newStaff.name} created with sign-in code: ${newStaff.sign_in_code}`, { type: 'success', duration: 10000 });
+    const [staff, events] = await Promise.all([fetchStaff(), fetchEvents(sportsdayId)]);
+    renderStaffTable(staff, events);
 }
 
 /* ------------------------------ */
@@ -243,6 +268,34 @@ const saveReqsBtn = document.getElementById("saveRequirementsBtn");
 saveReqsBtn.addEventListener("click", onSaveRequirements);
 const addHouseBtn = document.getElementById("addHouseBtn");
 addHouseBtn.addEventListener("click", addHouse);
+
+// --- Restore interactive year group selection ---
+const combineKS4 = document.getElementById("combineKS4");
+const combineKS5 = document.getElementById("combineKS5");
+const y10 = document.getElementById("y10");
+const y11 = document.getElementById("y11");
+const y12 = document.getElementById("y12");
+const y13 = document.getElementById("y13");
+
+combineKS4.addEventListener("change", () => {
+    const disabled = combineKS4.checked;
+    y10.disabled = disabled;
+    y11.disabled = disabled;
+    if (disabled) {
+        y10.checked = false;
+        y11.checked = false;
+    }
+});
+
+combineKS5.addEventListener("change", () => {
+    const disabled = combineKS5.checked;
+    y12.disabled = disabled;
+    y13.disabled = disabled;
+    if (disabled) {
+        y12.checked = false;
+        y13.checked = false;
+    }
+});
 
 // Check for a toast message from a redirect (e.g., after editing an event)
 const toastMessage = sessionStorage.getItem('toastMessage');
