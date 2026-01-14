@@ -3,6 +3,12 @@
 import { indexIssues } from "../domain/issues.js"
 import { findMatchingEvent } from "../domain/events.js"
 
+// Module-level state to track sorting
+let currentSort = {
+    columnIndex: null,
+    direction: 'asc' // 'asc' or 'desc'
+};
+
 export function renderStudentsTable({
     students,
     events_by_name,
@@ -14,10 +20,10 @@ export function renderStudentsTable({
 
     const headerRow = document.getElementById("student-header-row");
     headerRow.innerHTML = `
-        <th class="sticky top-0 bg-gray-50 p-2">Name</th>
-        <th class="sticky top-0 bg-gray-50 p-2">House</th>
-        <th class="sticky top-0 bg-gray-50 p-2">Year</th>
-        ${eventNames.map(n => `<th class="sticky top-0 bg-gray-50 p-2">${n}</th>`).join("")}
+        <th class="sticky top-0 bg-gray-50 p-2 cursor-pointer" data-column-index="0">Name</th>
+        <th class="sticky top-0 bg-gray-50 p-2 cursor-pointer" data-column-index="1">House</th>
+        <th class="sticky top-0 bg-gray-50 p-2 cursor-pointer" data-column-index="2">Year</th>
+        ${eventNames.map((n, i) => `<th class="sticky top-0 bg-gray-50 p-2 cursor-pointer" data-column-index="${i + 3}">${n}</th>`).join("")}
     `;
 
     const filterRow = document.getElementById("student-filter-row");
@@ -46,6 +52,7 @@ export function renderStudentsTable({
     }
 
     filterRow.addEventListener("input", applyFilters);
+    headerRow.addEventListener("click", handleSort);
 }
 
 /* ------------------------------ */
@@ -168,6 +175,66 @@ function applyFilters() {
         row.style.display = isVisible ? "" : "none";
     });
 }
+
+function handleSort(e) {
+    const header = e.target.closest('th');
+    if (!header || header.dataset.columnIndex === undefined) return;
+
+    const columnIndex = parseInt(header.dataset.columnIndex);
+
+    // Determine sort direction
+    let direction = 'asc';
+    if (currentSort.columnIndex === columnIndex && currentSort.direction === 'asc') {
+        direction = 'desc';
+    }
+
+    // Update sort state
+    currentSort = { columnIndex, direction };
+
+    // Sort and re-render
+    sortAndReorderTable(columnIndex, direction);
+}
+
+function sortAndReorderTable(columnIndex, direction) {
+    const tbody = document.getElementById("studentsTable");
+    const rows = Array.from(tbody.querySelectorAll("tr"));
+
+    const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+
+    rows.sort((rowA, rowB) => {
+        const cellA = rowA.cells[columnIndex];
+        const cellB = rowB.cells[columnIndex];
+
+        let valueA, valueB;
+
+        // Handle event columns (checkboxes)
+        if (columnIndex >= 3) {
+            const inputA = cellA.querySelector('input[type="checkbox"]');
+            const inputB = cellB.querySelector('input[type="checkbox"]');
+            valueA = inputA ? inputA.checked : false;
+            valueB = inputB ? inputB.checked : false;
+        } else { // Handle text/number columns
+            valueA = cellA.querySelector('input').value;
+            valueB = cellB.querySelector('input').value;
+        }
+
+        // For 'Year' column, compare as numbers
+        if (columnIndex === 2) {
+            valueA = parseInt(valueA, 10);
+            valueB = parseInt(valueB, 10);
+        }
+
+        const comparison = typeof valueA === 'boolean'
+            ? valueA - valueB
+            : collator.compare(valueA, valueB);
+
+        return direction === 'asc' ? comparison : -comparison;
+    });
+
+    // Re-append rows in sorted order
+    rows.forEach(row => tbody.appendChild(row));
+}
+
 
 /* ------------------------------ */
 /* Helpers                        */

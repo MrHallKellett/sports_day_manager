@@ -1,4 +1,4 @@
-import { populateYearGroupSelect } from "../ui/form_validation.js";
+import { populateYearGroupSelect, validateEventForm } from "../ui/form_validation.js";
 import { loadConfiguredAgeCategories } from "../api/sportsdays.js";
 import { displayExistingEventData, initCreate } from "../ui/event_form.js";
 import { fetchEvent } from "../api/events.js";

@@ -49,6 +49,7 @@ async function loadSportsDay(sportsdayId) {
     loadParticipationSettings(settings)
     applyYearGroupSettings(settings);
     populateHouseInputs(settings.houses);
+    populateNewStudentDropdowns(settings);
 
     await loadEvents(sportsdayId);
     await loadStudents(sportsdayId);
@@ -90,7 +91,13 @@ async function onSaveRequirements() {
             sportsdayId,
             payload
         );
-        showToast("Requirements saved");
+        showToast("Requirements saved", { type: "success" });
+
+        // Re-populate dropdowns and refresh tables to show new state
+        populateNewStudentDropdowns(payload);
+        await loadEvents(sportsdayId);
+        await loadStudents(sportsdayId);
+
     } catch (err) {
         showError(`Failed to save requirements ${err}`);
     }
@@ -102,26 +109,28 @@ async function onSaveRequirements() {
 
 window.onUpdateStudent = async (studentId, payload) => {
     const res = await updateStudent(studentId, payload);
-    if (!res.ok) alert("Failed to update student");
+    if (!res.ok) {
+        showError("Failed to update student");
+    } else {
+        showToast("Student updated");
+    }
 };
 
 window.onCreateStudent = async payload => {
     // Step 1: Create the student globally
     const createRes = await createStudent(payload);
-
     if (!createRes.ok) {
         const msg = await createRes.text();
-        alert(msg);
+        showError(msg);
         return;
     }
-
     const { student } = await createRes.json();
 
     // Step 2: Add the newly created student to this specific sports day
     const addRes = await addStudentToSportsDay(sportsdayId, student.id);
     if (!addRes.ok) {
         const msg = await addRes.text();
-        alert(`Student created, but failed to add to sports day: ${msg}`);
+        showError(`Student created, but failed to add to sports day: ${msg}`);
     }
 
     await loadStudents(sportsdayId);
@@ -142,7 +151,7 @@ function attachNewStudentFormHandler(students) {
         e.preventDefault();
 
         const name = document.getElementById("newStudentName").value.trim();
-        const house = document.getElementById("newStudentHouse").value.trim();
+        const house = document.getElementById("newStudentHouse").value;
         const year = parseInt(document.getElementById("newStudentYear").value);
 
         if (!name || !house || !year) {
@@ -165,10 +174,47 @@ function attachNewStudentFormHandler(students) {
     });
 }
 
+/**
+ * Populates the House and Year dropdowns in the "Add New Student" form.
+ * @param {object} settings - The sports day settings object.
+ */
+function populateNewStudentDropdowns(settings) {
+    const houseSelect = document.getElementById("newStudentHouse");
+    const yearSelect = document.getElementById("newStudentYear");
+
+    // Populate houses
+    houseSelect.innerHTML = '<option value="">Select House...</option>'; // Clear existing
+    (settings.houses || []).forEach(house => {
+        const option = new Option(house, house);
+        houseSelect.add(option);
+    });
+
+    // Populate years, expanding Key Stages
+    yearSelect.innerHTML = '<option value="">Select Year...</option>'; // Clear existing
+    const yearSet = new Set();
+    (settings.year_groups || []).forEach(yg => {
+        if (yg === "KS4") {
+            yearSet.add("10");
+            yearSet.add("11");
+        } else if (yg === "KS5") {
+            yearSet.add("12");
+            yearSet.add("13");
+        } else {
+            yearSet.add(String(yg));
+        }
+    });
+
+    const sortedYears = Array.from(yearSet).sort((a, b) => parseInt(a) - parseInt(b));
+    sortedYears.forEach(year => yearSelect.add(new Option(`Year ${year}`, year)));
+}
+
 /* existing callback */
 window.onToggleParticipation = async (eventId, studentId, on) => {
     const res = await toggleParticipation(eventId, studentId, on);
-    if (!res.ok) alert("Unable to update participation");
+    if (!res.ok) {
+        const msg = await res.text();
+        showError(`Unable to update participation: ${msg}`);
+    }
 };
 
 const sportsdayId = parseInt(

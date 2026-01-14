@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <style>
+        @import "/static/style.css";
         body {
             font-family: sans-serif;
             margin: 0;
@@ -74,6 +75,8 @@
     Student Dashboard
 </header>
 
+<div id="toast-container"></div>
+
 <div class="container">
 
     <!-- STUDENT INFO -->
@@ -101,212 +104,7 @@
 
 </div>
 
-<script>
-let student = null;
-let settings = null;
-let allEvents = [];
-let myParticipants = [];
-
-// -----------------------------
-// LOAD STUDENT LOGIN
-// -----------------------------
-function loadStudent() {
-    const saved = localStorage.getItem("student");
-    if (!saved) {
-        window.location.href = "/student/login";
-        return;
-    }
-    student = JSON.parse(saved);
-    studentName.textContent = student.name;
-    studentYear.textContent = student.year_group;
-    studentHouse.textContent = student.house;
-}
-
-// -----------------------------
-// LOGOUT
-// -----------------------------
-function logout() {
-    localStorage.removeItem("student");
-    window.location.href = "/student/login";
-}
-
-// -----------------------------
-// FETCH ALL DATA
-// -----------------------------
-async function loadData() {
-    settings = await fetch("/settings").then(r => r.json());
-    allEvents = await fetch("/events").then(r => r.json());
-    myParticipants = await fetch("/event_participants").then(r => r.json());
-    renderDashboard();
-}
-
-// -----------------------------
-// RENDER EVERYTHING
-// -----------------------------
-function renderDashboard() {
-    const myEventIDs = myParticipants
-        .filter(p => p.student_id === student.id)
-        .map(p => p.event_id);
-
-    const myEvents = allEvents.filter(e => myEventIDs.includes(e.id));
-
-    const myField = myEvents.filter(e => e.category === "field").length;
-    const myTrack = myEvents.filter(e => e.category === "track").length;
-
-    fieldReq.innerHTML = checkReq(myField >= settings.field_min, 
-        `Field: ${myField} / minimum ${settings.field_min}`);
-
-    trackReq.innerHTML = checkReq(myTrack >= settings.track_min, 
-        `Track: ${myTrack} / minimum ${settings.track_min}`);
-
-    overallReq.innerHTML = checkReq(myEvents.length <= settings.overall_max, 
-        `Overall: ${myEvents.length} / maximum ${settings.overall_max}`);
-
-    renderEventList(myEventIDs);
-}
-
-function checkReq(ok, text) {
-    return ok ? `<span class='req-ok'>${text}</span>`
-              : `<span class='req-bad'>${text}</span>`;
-}
-
-// -----------------------------
-// SHOW EVENTS
-// -----------------------------
-function renderEventList(myEventIDs) {
-    eventList.innerHTML = "";
-    allEvents.forEach(e => {
-        const div = document.createElement("div");
-        div.className = "event";
-
-        const isMine = myEventIDs.includes(e.id);
-
-        div.innerHTML = `
-            <strong>${e.name}</strong><br>
-            Year Group: ${e.year_group}<br>
-            Category: ${e.category}<br>
-            Participants: ${countEventParticipants(e.id)} / ${e.max_participants}<br>
-            House Limit: min ${e.min_per_house}, max ${e.max_per_house}
-        `;
-
-        const btn = document.createElement("button");
-        btn.className = "btn";
-        btn.style.marginTop = "8px";
-
-        if (isMine) {
-            btn.textContent = "Remove Me";
-            btn.classList.add("red");
-            btn.onclick = () => unregister(e.id);
-        } else {
-            btn.textContent = "Join Event";
-            btn.onclick = () => register(e);
-        }
-
-        div.appendChild(btn);
-        eventList.appendChild(div);
-    });
-}
-
-// -----------------------------
-// COUNT EVENT PARTICIPANTS
-// -----------------------------
-function countEventParticipants(event_id) {
-    return myParticipants.filter(p => p.event_id === event_id).length;
-}
-
-function countHouse(event_id) {
-    const eps = myParticipants.filter(p => p.event_id === event_id);
-    let count = 0;
-    for (let p of eps) {
-        const stu = p.student_cached || null;
-    }
-    return myParticipants.filter(p => {
-        const evStu = window.studentCache[p.student_id];
-        return p.event_id === event_id && evStu.house === student.house;
-    }).length;
-}
-
-// -----------------------------
-// REGISTER
-// -----------------------------
-async function register(event) {
-    const myEventIDs = myParticipants
-        .filter(p => p.student_id === student.id)
-        .map(p => p.event_id);
-
-    const myEvents = allEvents.filter(e => myEventIDs.includes(e.id));
-    const myField = myEvents.filter(e => e.category === "field").length;
-    const myTrack = myEvents.filter(e => e.category === "track").length;
-
-    if (myEvents.length >= settings.overall_max) {
-        alert("You have reached the overall event limit.");
-        return;
-    }
-
-    const currentCount = countEventParticipants(event.id);
-    if (currentCount >= event.max_participants) {
-        alert("This event is full.");
-        return;
-    }
-
-    const houseCount = myParticipants.filter(p => {
-        const stu = window.studentCache[p.student_id];
-        return p.event_id === event.id && stu.house === student.house;
-    }).length;
-
-    if (houseCount >= event.max_per_house) {
-        alert("Your house has reached its maximum for this event.");
-        return;
-    }
-
-    const res = await fetch(`/events/${event.id}/participants`, {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({student_id: student.id})
-    });
-
-    if (res.ok) {
-        myParticipants = await fetch("/event_participants").then(r => r.json());
-        renderDashboard();
-    } else {
-        alert(await res.text());
-    }
-}
-
-// -----------------------------
-// UNREGISTER
-// -----------------------------
-async function unregister(event_id) {
-    const res = await fetch(`/events/${event_id}/participants/${student.id}`, {
-        method: "DELETE"
-    });
-    if (res.ok) {
-        myParticipants = await fetch("/event_participants").then(r => r.json());
-        renderDashboard();
-    } else {
-        alert(await res.text());
-    }
-}
-
-// -----------------------------
-// CACHE ALL STUDENTS (for house checks)
-// -----------------------------
-window.studentCache = {};
-
-async function loadStudents() {
-    const studs = await fetch("/students").then(r => r.json());
-    studs.forEach(s => window.studentCache[s.id] = s);
-}
-
-// -----------------------------
-// STARTUP
-// -----------------------------
-(async function(){
-    loadStudent();
-    await loadStudents();
-    await loadData();
-})();
-</script>
+<script type="module" src="/static/scripts/pages/student_dashboard.js"></script>
 
 </body>
 </html>
