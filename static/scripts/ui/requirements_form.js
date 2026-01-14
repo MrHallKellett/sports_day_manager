@@ -11,7 +11,7 @@ export function addHouse() {
     // Create input element
     const input = document.createElement("input");
     input.id = `house${houseCount}`;
-    // input.className = "w-full border rounded px-3 py-2"; // Pico.css styles this automatically
+    input.className = "w-full border rounded px-3 py-2";
     
     // Append input to label
     label.appendChild(input);

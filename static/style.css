@@ -103,6 +103,17 @@
     --pico-line-height: 1.4;
 }
 
+/* Row Highlighting */
+.row-highlight-error {
+    background-color: #fee2e2; /* red-100 */
+}
+.row-highlight-warning {
+    background-color: #ffedd5; /* orange-100 */
+}
+.row-highlight-ok {
+    background-color: #dcfce7; /* green-100 */
+}
+
 button,
 input[type="submit"],
 input[type="button"] {

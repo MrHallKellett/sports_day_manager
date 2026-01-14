@@ -13,7 +13,9 @@ export function renderStudentsTable({
     students,
     events_by_name,
     participation,
-    issues = []
+    issues = [],
+    settings,
+    event_participation_counts
     }) {
     const issueMap = indexIssues(issues);
     const eventNames = Object.keys(events_by_name);
@@ -42,17 +44,16 @@ export function renderStudentsTable({
     const tbody = document.getElementById("studentsTable");
     tbody.innerHTML = "";
 
-
-
     /* ✅ Existing students */
     for (const s of students) {
         tbody.appendChild(
-            renderStudentRow(s, eventNames, events_by_name, participation, issueMap)
+            renderStudentRow(s, students, eventNames, events_by_name, participation, issueMap, settings, event_participation_counts)
         );
     }
 
     filterRow.addEventListener("input", applyFilters);
     headerRow.addEventListener("click", handleSort);
+    document.getElementById("showHighlightsBtn").addEventListener("click", toggleHighlights);
 }
 
 /* ------------------------------ */
@@ -66,39 +67,32 @@ export function renderStudentsTable({
 
 function renderStudentRow(
     student,
+    students, // Pass in the full list
     eventNames,
     events_by_name,
     participation,
-    issueMap
+    issueMap,
+    settings,
+    event_participation_counts
 ) {
     const issue = issueMap[student.name];
     const tr = document.createElement("tr");
+    tr.dataset.studentId = student.id;
 
-    const nameInput = editableCell(
-        student.name,
-        value => window.onUpdateStudent(student.id, { name: value })
-    );
+    const status = calculateStudentStatus(student, participation[student.id] || [], settings, events_by_name, event_participation_counts);
+    tr.dataset.highlightStatus = status;
 
-    const houseInput = editableCell(
-        student.house,
-        value => window.onUpdateStudent(student.id, { house: value })
-    );
+    // Create Name, House, and Year cells as non-editable text initially
+    const nameTd = createStudentInfoCell(student.name, () => makeCellEditable(nameTd, student, 'name', settings, events_by_name, participation, event_participation_counts));
+    const houseTd = createStudentInfoCell(student.house, () => makeCellEditable(houseTd, student, 'house', settings, events_by_name, participation, event_participation_counts));
+    const yearTd = createStudentInfoCell(student.year, () => makeCellEditable(yearTd, student, 'year', settings, events_by_name, participation, event_participation_counts));
 
-    const yearInput = editableCell(
-        student.year,
-        value => window.onUpdateStudent(
-            student.id,
-            { year: parseInt(value) }
-        ),
-        "number"
-    );
+    if (issue?.house_invalid) houseTd.classList.add("cell-warning");
+    if (issue?.year_invalid) yearTd.classList.add("cell-warning");
 
-    if (issue?.house_invalid) houseInput.classList.add("cell-warning");
-    if (issue?.year_invalid) yearInput.classList.add("cell-warning");
-
-    tr.appendChild(wrapTd(nameInput));
-    tr.appendChild(wrapTd(houseInput));
-    tr.appendChild(wrapTd(yearInput));
+    tr.appendChild(nameTd);
+    tr.appendChild(houseTd);
+    tr.appendChild(yearTd);
 
     // Event Checkboxes
     for (const eventName of eventNames) {
@@ -106,7 +100,7 @@ function renderStudentRow(
         const matchedEvent = findMatchingEvent(eventsForName, student.year);
 
         const td = document.createElement("td");
-
+        td.className = "text-center";
         if (!matchedEvent) {
             td.textContent = "—";
         } else {
@@ -115,13 +109,45 @@ function renderStudentRow(
             cb.checked =
                 participation[student.id]?.includes(matchedEvent.id);
 
-            cb.addEventListener("change", () =>
-                window.onToggleParticipation(
+            cb.addEventListener("change", async () => {
+                const success = await window.onToggleParticipation(
                     matchedEvent.id,
                     student.id,
                     cb.checked
-                )
-            );
+                );
+
+                if (success) {
+                    // Update the local participation data model
+                    const studentParticipation = participation[student.id] || [];
+                    if (cb.checked) {
+                        // Add student to event
+                        studentParticipation.push(matchedEvent.id);
+                        // Increment house count for this event
+                        event_participation_counts[matchedEvent.id] = event_participation_counts[matchedEvent.id] || {};
+                        event_participation_counts[matchedEvent.id][student.house] = (event_participation_counts[matchedEvent.id][student.house] || 0) + 1;
+                    } else {
+                        // Remove student from event
+                        const index = studentParticipation.indexOf(matchedEvent.id);
+                        if (index > -1) studentParticipation.splice(index, 1);
+                        // Decrement house count for this event
+                        if (event_participation_counts[matchedEvent.id]?.[student.house]) {
+                            event_participation_counts[matchedEvent.id][student.house]--;
+                        }
+                    }
+                    participation[student.id] = studentParticipation;
+
+                    // Re-highlight all rows as this change can affect others
+                    if (document.body.classList.contains('show-row-highlights')) {
+                        document.querySelectorAll('#studentsTable tr').forEach(row => {
+                            const studentId = parseInt(row.dataset.studentId);
+                            const studentData = students.find(s => s.id === studentId);
+                            if (studentData) {
+                                updateRowHighlight(row, studentData, participation, settings, events_by_name, event_participation_counts);
+                            }
+                        });
+                    }
+                }
+            });
 
             td.appendChild(cb);
         }
@@ -130,6 +156,182 @@ function renderStudentRow(
     }
 
     return tr;
+}
+
+function createStudentInfoCell(text, onDoubleClick) {
+    const td = document.createElement("td");
+    td.className = "px-2 py-1";
+    td.textContent = text;
+    td.addEventListener('dblclick', onDoubleClick);
+    return td;
+}
+
+function makeCellEditable(td, student, field, settings, events_by_name, participation, event_participation_counts) {
+    const originalValue = td.textContent;
+    const tr = td.closest('tr');
+    td.innerHTML = ''; // Clear the cell
+
+    let input;
+
+    if (field === 'house') {
+        input = document.createElement('select');
+        (settings.houses || []).forEach(house => {
+            const option = new Option(house, house);
+            input.add(option);
+        });
+    } else if (field === 'year') {
+        input = document.createElement('select');
+        const yearSet = new Set();
+        (settings.year_groups || []).forEach(yg => {
+            if (yg === "KS4") { yearSet.add("10"); yearSet.add("11"); }
+            else if (yg === "KS5") { yearSet.add("12"); yearSet.add("13"); }
+            else { yearSet.add(String(yg)); }
+        });
+        const sortedYears = Array.from(yearSet).sort((a, b) => parseInt(a) - parseInt(b));
+        sortedYears.forEach(year => input.add(new Option(`Year ${year}`, year)));
+    } else { // 'name'
+        input = document.createElement('input');
+        input.type = 'text';
+    }
+
+    input.className = "border rounded px-2 py-1 w-full";
+    input.value = originalValue;
+    td.appendChild(input);
+    input.focus();
+
+    function revert() {
+        td.textContent = originalValue;
+    }
+
+    async function save() {
+        const newValue = (field === 'year') ? parseInt(input.value) : input.value;
+
+        if (String(newValue) !== originalValue) {
+            // Optimistically update UI
+            td.textContent = newValue;
+
+            // Update student object for highlight recalculation
+            const oldStudentData = { ...student };
+            student[field] = newValue;
+
+            // Send update to backend
+            const res = await window.onUpdateStudent(student.id, { [field]: newValue });
+
+            if (res.ok) {
+                // Recalculate and apply the new status
+                updateRowHighlight(tr, student, participation, settings, events_by_name, event_participation_counts);
+            } else {
+                // Revert on failure
+                student[field] = oldStudentData[field]; // Revert student object
+                td.textContent = originalValue;
+                updateRowHighlight(tr, student, participation, settings, events_by_name, event_participation_counts);
+            }
+        } else {
+            revert();
+        }
+    }
+
+    input.addEventListener('blur', save);
+
+    input.addEventListener('keydown', e => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            input.blur(); // Trigger save
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            revert();
+            // Manually remove blur listener to prevent save on escape
+            input.removeEventListener('blur', save);
+        }
+    });
+}
+
+function updateRowHighlight(tr, student, participation, settings, eventsByName, event_participation_counts) {
+    const newStatus = calculateStudentStatus(student, participation[student.id] || [], settings, eventsByName, event_participation_counts);
+    tr.dataset.highlightStatus = newStatus;
+
+    // If highlights are currently active, update the class
+    if (document.body.classList.contains('show-row-highlights')) {
+        // Remove old highlight classes
+        tr.classList.remove('row-highlight-ok', 'row-highlight-warning', 'row-highlight-error');
+        // Add the new one
+        tr.classList.add(`row-highlight-${newStatus}`);
+    }
+}
+
+function calculateStudentStatus(student, participationIds, settings, eventsByName, event_participation_counts) {
+    const allowedHouses = new Set(settings.houses || []);
+    const allowedYears = new Set();
+    (settings.year_groups || []).forEach(yg => {
+        if (yg === "KS4") { allowedYears.add("10"); allowedYears.add("11"); }
+        else if (yg === "KS5") { allowedYears.add("12"); allowedYears.add("13"); }
+        else { allowedYears.add(String(yg)); }
+    });
+
+    // --- Red/Error Checks ---
+    if (!student.name || !student.house || !student.year) return 'error';
+    if (!allowedHouses.has(student.house)) return 'error';
+    if (!allowedYears.has(String(student.year))) return 'error';
+
+    const allEvents = Object.values(eventsByName).flat();
+    // --- Red/Error Check for House Quota ---
+    for (const eventId of participationIds) {
+        const event = allEvents.find(e => e.id === eventId);
+        if (event && event.max_per_house > 0) {
+            const houseCount = event_participation_counts[eventId]?.[student.house] || 0;
+            if (houseCount > event.max_per_house) {
+                return 'error';
+            }
+        }
+    }
+
+    // --- Orange/Warning Checks ---
+    let trackCount = 0;
+    let fieldCount = 0;
+
+    participationIds.forEach(eventId => {
+        const event = allEvents.find(e => e.id === eventId);
+        if (event) {
+            if (event.category === 'track') trackCount++;
+            if (event.category === 'field') fieldCount++;
+        }
+    });
+
+    if (settings.track_min > 0 && trackCount < settings.track_min) return 'warning';
+    if (settings.field_min > 0 && fieldCount < settings.field_min) return 'warning';
+    if (settings.overall_max > 0 && participationIds.length > settings.overall_max) return 'warning';
+
+    // --- Green/OK ---
+    return 'ok';
+}
+
+function toggleHighlights(e) {
+    const btn = e.currentTarget;
+    const isShowing = document.body.classList.toggle('show-row-highlights');
+
+    if (isShowing) {
+        btn.textContent = "Hide Highlights";
+        btn.classList.remove('bg-gray-200', 'text-gray-800');
+        btn.classList.add('bg-indigo-600', 'text-white');
+        applyHighlights();
+    } else {
+        btn.textContent = "Show Highlights";
+        btn.classList.add('bg-gray-200', 'text-gray-800');
+        btn.classList.remove('bg-indigo-600', 'text-white');
+        clearHighlights();
+    }
+}
+
+function applyHighlights() {
+    document.querySelectorAll('#studentsTable tr[data-highlight-status]').forEach(row => {
+        row.classList.add(`row-highlight-${row.dataset.highlightStatus}`);
+    });
+}
+
+function clearHighlights() {
+    document.querySelectorAll('#studentsTable tr').forEach(row => {
+        row.className = row.className.replace(/row-highlight-\w+/g, '');
+    });
 }
 
 function applyFilters() {
@@ -148,9 +350,15 @@ function applyFilters() {
     const rows = document.querySelectorAll("#studentsTable tr");
 
     rows.forEach(row => {
-        const name = row.cells[0].querySelector('input').value.toLowerCase();
-        const house = row.cells[1].querySelector('input').value.toLowerCase();
-        const year = row.cells[2].querySelector('input').value.toLowerCase();
+        const nameInput = row.cells[0].querySelector('input, select');
+        const houseInput = row.cells[1].querySelector('input, select');
+        const yearInput = row.cells[2].querySelector('input, select');
+
+        // Get value from input if in edit mode, otherwise from the cell's text content.
+        const name = (nameInput ? nameInput.value : row.cells[0].textContent).toLowerCase();
+        const house = (houseInput ? houseInput.value : row.cells[1].textContent).toLowerCase();
+        const year = (yearInput ? yearInput.value : row.cells[2].textContent).toLowerCase();
+
 
         let isVisible = true;
 
@@ -214,8 +422,11 @@ function sortAndReorderTable(columnIndex, direction) {
             valueA = inputA ? inputA.checked : false;
             valueB = inputB ? inputB.checked : false;
         } else { // Handle text/number columns
-            valueA = cellA.querySelector('input').value;
-            valueB = cellB.querySelector('input').value;
+            const inputA = cellA.querySelector('input, select');
+            const inputB = cellB.querySelector('input, select');
+            // Get value from input if in edit mode, otherwise from the cell's text content.
+            valueA = inputA ? inputA.value : cellA.textContent;
+            valueB = inputB ? inputB.value : cellB.textContent;
         }
 
         // For 'Year' column, compare as numbers

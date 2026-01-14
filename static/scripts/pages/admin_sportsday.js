@@ -34,6 +34,7 @@ export function buildRequirementsPayload() {
 
 async function loadSportsDay(sportsdayId) {
     const [sportsday, settings] = await Promise.all([
+        // Pass settings object to student loader
         fetchSportsDay(sportsdayId),
         fetchSportsDaySettings(sportsdayId)
     ]);
@@ -52,7 +53,7 @@ async function loadSportsDay(sportsdayId) {
     populateNewStudentDropdowns(settings);
 
     await loadEvents(sportsdayId);
-    await loadStudents(sportsdayId);
+    await loadStudents(sportsdayId, settings);
 }
 
 async function loadEvents(sportsdayId) {
@@ -70,14 +71,14 @@ async function loadEvents(sportsdayId) {
     renderEventsTable(sportsDayEvents, warnings, sportsdayId);
 }
 
-async function loadStudents(sportsdayId, issues = []) {
+async function loadStudents(sportsdayId, settings, issues = []) {
     const data = await fetchStudentsForSportsDay(sportsdayId);
 
     /* ✅ newest first */
     data.students.sort((a, b) => b.id - a.id);
 
-    // Pass student data to the table renderer
-    renderStudentsTable({ ...data, issues });
+    // Pass student data and settings to the table renderer
+    renderStudentsTable({ ...data, issues, settings });
 
     // Make student data available for the "add student" form
     attachNewStudentFormHandler(data.students);
@@ -96,7 +97,7 @@ async function onSaveRequirements() {
         // Re-populate dropdowns and refresh tables to show new state
         populateNewStudentDropdowns(payload);
         await loadEvents(sportsdayId);
-        await loadStudents(sportsdayId);
+        await loadStudents(sportsdayId, payload);
 
     } catch (err) {
         showError(`Failed to save requirements ${err}`);
@@ -114,6 +115,8 @@ window.onUpdateStudent = async (studentId, payload) => {
     } else {
         showToast("Student updated");
     }
+    // Return the response so the caller can check success
+    return res;
 };
 
 window.onCreateStudent = async payload => {
@@ -133,7 +136,8 @@ window.onCreateStudent = async payload => {
         showError(`Student created, but failed to add to sports day: ${msg}`);
     }
 
-    await loadStudents(sportsdayId);
+    const settings = await fetchSportsDaySettings(sportsdayId);
+    await loadStudents(sportsdayId, settings);
 };
 
 /**
@@ -214,19 +218,38 @@ window.onToggleParticipation = async (eventId, studentId, on) => {
     if (!res.ok) {
         const msg = await res.text();
         showError(`Unable to update participation: ${msg}`);
+        return false;
     }
+
+    if (on) { // Only check for warnings when adding a participant
+        const data = await res.json();
+        const state = data.new_state;
+        if (state.max_per_house > 0 && state.house_participants > state.max_per_house) {
+            const msg = `Warning: ${state.event_name} now has ${state.house_participants} participants for house ${state.student_house}.`;
+            showToast(msg, { type: 'warning', duration: 6000 });
+        }
+    }
+    return true; // Return true for both adding and removing
 };
 
 const sportsdayId = parseInt(
     window.location.pathname.split("/").pop()
 );
 
+// --- Entry Point ---
+
+// Set up event listeners for buttons
+const saveReqsBtn = document.getElementById("saveRequirementsBtn");
+saveReqsBtn.addEventListener("click", onSaveRequirements);
+const addHouseBtn = document.getElementById("addHouseBtn");
+addHouseBtn.addEventListener("click", addHouse);
+
+// Check for a toast message from a redirect (e.g., after editing an event)
+const toastMessage = sessionStorage.getItem('toastMessage');
+if (toastMessage) {
+    showToast(toastMessage, { type: 'info', duration: 7000 });
+    sessionStorage.removeItem('toastMessage'); // Clear after showing
+}
+
+// Load all initial data for the page
 loadSportsDay(sportsdayId);
-
-document.addEventListener("DOMContentLoaded", () => {
-    const saveReqsBtn = document.getElementById("saveRequirementsBtn");
-    saveReqsBtn.addEventListener("click", onSaveRequirements);
-    const addHouseBtn = document.getElementById("addHouseBtn");
-    addHouseBtn.addEventListener("click", addHouse);
-
-});

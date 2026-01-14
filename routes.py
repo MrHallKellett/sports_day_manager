@@ -210,9 +210,40 @@ def delete_event(eid):
 @bp.patch("/events/<int:eid>")
 def update_event(eid):
     e = Event.query.get_or_404(eid)
-    for k,v in request.json.items():
+    data = request.json
+    old_year_group = e.year_group
+
+    for k,v in data.items():
         if k in ALLOWED_PATCH_FIELDS:
             setattr(e, k, v)
+
+    # If the year group was changed, we need to remove any students
+    # who are no longer eligible to participate.
+    if "year_group" in data and data["year_group"] != old_year_group:
+        new_year_group = data["year_group"]
+
+        # Get all current participants for this event
+        participants_to_check = EventParticipant.query.filter_by(event_id=eid).all()
+
+        for participant in participants_to_check:
+            student = Student.query.get(participant.student_id)
+            if not student:
+                continue
+
+            # Check if student is still eligible
+            student_year = student.year
+            is_compatible = False
+            if new_year_group == "KS4":
+                is_compatible = student_year in [10, 11]
+            elif new_year_group == "KS5":
+                is_compatible = student_year in [12, 13]
+            else:
+                is_compatible = str(student_year) == new_year_group
+
+            # If not compatible, remove them
+            if not is_compatible:
+                db.session.delete(participant)
+
     db.session.commit()
     return ok({"message":"event updated"})
 
@@ -572,13 +603,31 @@ def get_students(sd_id):
     for p in participants:
         participation.setdefault(p.student_id, set()).add(p.event_id)
 
+    # Pre-calculate house participation counts for each event
+    # event_id -> house_name -> count
+    student_house_map = {s.id: s.house for s in students}
+    event_participation_counts = {}
+    for p in participants:
+        event_id = p.event_id
+        student_id = p.student_id
+        house = student_house_map.get(student_id)
+
+        if not house:
+            continue
+
+        if event_id not in event_participation_counts:
+            event_participation_counts[event_id] = {}
+
+        event_participation_counts[event_id][house] = event_participation_counts[event_id].get(house, 0) + 1
 
     events_by_name = {}
 
     for e in events:
         events_by_name.setdefault(e.name, []).append({
             "id": e.id,
-            "year_group": str(e.year_group)
+            "year_group": str(e.year_group),
+            "category": e.category,
+            "max_per_house": e.max_per_house
         })
 
     return ok({
@@ -595,7 +644,8 @@ def get_students(sd_id):
         "events_by_name": events_by_name,
         "participation": {
             str(k): list(v) for k, v in participation.items()
-        }
+        },
+        "event_participation_counts": {str(k): v for k, v in event_participation_counts.items()}
     })
 
 @bp.get("/event_participants")
@@ -613,24 +663,29 @@ def add_participant(event_id):
     student_id = request.json["student_id"]
     student = Student.query.get_or_404(student_id)
 
-    # Count participants
-    current_participants = EventParticipant.query.filter_by(event_id=event_id).all()
-
-    # Check max participants total
-    if len(current_participants) >= event.max_participants:
-        abort(400, "Event is full")
-
-    # Check house quota
-    house_count = sum(1 for p in current_participants
-                      if Student.query.get(p.student_id).house == student.house)
-
-    if house_count >= event.max_per_house:
-        abort(400, "House limit reached for this event")
-
     ep = EventParticipant(event_id=event_id, student_id=student_id)
     db.session.add(ep)
     db.session.commit()
-    return created({"id": ep.id})
+
+    # After committing, calculate the new counts to return to the frontend
+    current_participants = EventParticipant.query.filter_by(event_id=event_id).all()
+    participant_student_ids = {p.student_id for p in current_participants}
+    participant_students = Student.query.filter(Student.id.in_(participant_student_ids)).all()
+
+    total_participants = len(current_participants)
+    house_count = sum(1 for s in participant_students if s.house == student.house)
+
+    return created({
+        "id": ep.id,
+        "new_state": {
+            "event_name": event.name,
+            "student_house": student.house,
+            "total_participants": total_participants,
+            "house_participants": house_count,
+            "max_participants": event.max_participants,
+            "max_per_house": event.max_per_house
+        }
+    })
 
 @bp.delete("/events/<int:event_id>/participants/<int:student_id>")
 def remove_participant(event_id, student_id):
@@ -687,4 +742,3 @@ def index():
 # -----------------------------
 # RUN
 # -----------------------------
-

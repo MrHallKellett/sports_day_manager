@@ -20,12 +20,14 @@ fetch("/static/event_form.html")
     .then(r => r.text())
     .then(html => {
         document.getElementById("mount").innerHTML = html;
+
+        // Now that the HTML is loaded, load the script that uses it.
+        const script = document.createElement('script');
+        script.type = 'module';
+        script.src = '/static/scripts/pages/event_form.js';
+        document.body.appendChild(script);
     });
 </script>
-
-<!-- ✅ ONE module entry point -->
-<script type="module" src="/static/scripts/pages/event_form.js"></script>
-
 
 </body>
 </html>

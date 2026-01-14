@@ -54,7 +54,7 @@
                 <input id="house1"  class="w-full border rounded px-3 py-2" />
                 </label>
                 <label>House 2 Name:
-                    <input id="house1"  class="w-full border rounded px-3 py-2" />
+                    <input id="house2"  class="w-full border rounded px-3 py-2" />
                 </label>
             </div>
             <button id="addHouseBtn">Add House</button>
@@ -173,6 +173,11 @@
                         class="bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-700">
                         Upload CSV
                     </button>
+                    <button id="showHighlightsBtn"
+                        type="button"
+                        class="ml-4 bg-gray-200 text-gray-800 px-3 py-2 rounded hover:bg-gray-300">
+                        Show Highlights
+                    </button>
                     <span id="csvFileName"
                             class="ml-2 text-sm text-gray-600"></span>
                 </div>
@@ -225,6 +230,8 @@
     </div>
 
 </div>
+
+<div id="toast-container"></div>
 
 <script type="module" src="/static/scripts/pages/admin_sportsday.js"></script>
 
