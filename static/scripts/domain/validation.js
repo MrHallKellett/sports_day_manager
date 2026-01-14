@@ -17,10 +17,6 @@ function isDigit(string) {
 export function validateEvent(data) {
     const errors = [];
 
-    console.log("\n\n\n\n\n\n\n\n\n\n\n\n\n") 
-
-    console.log(data)
-
     if (!data.name) {
         errors.push("Name cannot be blank.");
     }
@@ -29,15 +25,15 @@ export function validateEvent(data) {
         errors.push("Year Group cannot be blank.");
     }
 
-    if (Number.isNaN(data.min_participants)) {
+    if (data.min_participants == null || Number.isNaN(data.min_participants)) {
         errors.push("Min participants cannot be blank.");
     }
 
-    if (Number.isNaN(data.max_participants)) {
+    if (data.max_participants == null || Number.isNaN(data.max_participants)) {
         errors.push("Max participants cannot be blank.");
     }
 
-    if (Number.isNaN(data.scoring_places)) {
+    if (data.scoring_places == null || Number.isNaN(data.scoring_places)) {
         errors.push("Scoring cutoff N cannot be blank.");
     }
 

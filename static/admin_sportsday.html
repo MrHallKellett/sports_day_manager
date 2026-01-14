@@ -192,7 +192,7 @@
 
                 <input id="newStudentYear"
                         type="number"
-                        class="border rounded px-2 py-1 w-24"
+                        class="border rounded px-2 py-1 w-full"
                         placeholder="Year" />
 
                 <button type="submit"
@@ -206,15 +206,11 @@
         <div id="uploadWarnings" class="hidden warning-box mb-4"></div>
 
         <!-- Students Table (full width) -->
-        <div class="overflow-x-auto">
+        <div class="overflow-auto h-[60vh] border rounded">
             <table class="min-w-full text-sm">
                 <thead>
-                    <tr class="text-left border-b">
-                        <th class="py-2">Name</th>
-                        <th class="py-2">House</th>
-                        <th class="py-2">Year Group</th>
-                        <th class="py-2">Events Registered</th>
-                    </tr>
+                    <tr id="student-header-row" class="text-left border-b"></tr>
+                    <tr id="student-filter-row" class="text-left border-b"></tr>
                 </thead>
                 <tbody id="studentsTable">
                     <tr>

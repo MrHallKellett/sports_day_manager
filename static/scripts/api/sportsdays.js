@@ -29,3 +29,11 @@ export async function updateSportsDayRequirements(sportsdayId, payload) {
     if (!res.ok) throw new Error("Failed to save requirements");
     return res.json();
 }
+
+export async function addStudentToSportsDay(sportsdayId, studentId) {
+    return fetch(`/sportsdays/${sportsdayId}/students`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ student_id: studentId })
+    });
+}

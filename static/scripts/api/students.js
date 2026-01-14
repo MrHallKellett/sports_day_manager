@@ -26,8 +26,8 @@ export async function updateStudent(studentId, payload) {
     });
 }
 
-export async function createStudent(sportsdayId, payload) {
-    return fetch(`/sportsdays/${sportsdayId}/students`, {
+export async function createStudent(payload) {
+    return fetch(`/students`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)

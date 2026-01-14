@@ -1,7 +1,7 @@
 // static/scripts/pages/admin_sportsday.js
 
 import { fetchSportsDay, fetchSportsDaySettings,
-         updateSportsDayRequirements, loadConfiguredAgeCategories } from "../api/sportsdays.js"
+         updateSportsDayRequirements, loadConfiguredAgeCategories, addStudentToSportsDay } from "../api/sportsdays.js"
 import { fetchStudentsForSportsDay, createStudent, updateStudent } from "../api/students.js"
 import { fetchEvents, toggleParticipation } from "../api/events.js"
 import { loadParticipationSettings, applyYearGroupSettings } from "../ui/sportsday_settings.js"
@@ -18,6 +18,7 @@ import { getValue } from "./helpers.js"
 
 import { showToast } from "../ui/toast.js";
 import { showError } from "../ui/feedback.js";
+import { showErrors } from "../ui/feedback.js";
 
 let duplicateLoaded = false;
 
@@ -74,7 +75,11 @@ async function loadStudents(sportsdayId, issues = []) {
     /* ✅ newest first */
     data.students.sort((a, b) => b.id - a.id);
 
+    // Pass student data to the table renderer
     renderStudentsTable({ ...data, issues });
+
+    // Make student data available for the "add student" form
+    attachNewStudentFormHandler(data.students);
 }
 
 async function onSaveRequirements() {
@@ -101,55 +106,64 @@ window.onUpdateStudent = async (studentId, payload) => {
 };
 
 window.onCreateStudent = async payload => {
-    const res = await createStudent(sportsdayId, payload);
+    // Step 1: Create the student globally
+    const createRes = await createStudent(payload);
 
-    if (!res.ok) {
-        const msg = await res.text();
+    if (!createRes.ok) {
+        const msg = await createRes.text();
         alert(msg);
         return;
+    }
+
+    const { student } = await createRes.json();
+
+    // Step 2: Add the newly created student to this specific sports day
+    const addRes = await addStudentToSportsDay(sportsdayId, student.id);
+    if (!addRes.ok) {
+        const msg = await addRes.text();
+        alert(`Student created, but failed to add to sports day: ${msg}`);
     }
 
     await loadStudents(sportsdayId);
 };
 
+/**
+ * Attaches the submit event listener to the "Add New Student" form.
+ * This needs the current list of students to check for duplicates.
+ * @param {Array} students - The current list of student objects.
+ */
+function attachNewStudentFormHandler(students) {
+    const form = document.getElementById("newStudentForm");
+    // To prevent multiple listeners, we replace the node with a clone.
+    const newForm = form.cloneNode(true);
+    form.parentNode.replaceChild(newForm, form);
 
+    newForm.addEventListener("submit", async e => {
+        e.preventDefault();
 
-document.getElementById("newStudentForm").addEventListener("submit", async e => {
-    e.preventDefault();
-    alert("running")
+        const name = document.getElementById("newStudentName").value.trim();
+        const house = document.getElementById("newStudentHouse").value.trim();
+        const year = parseInt(document.getElementById("newStudentYear").value);
 
-    const name = document.getElementById("newStudentName").value.trim();
-    const house = document.getElementById("newStudentHouse").value.trim();
-    const year = parseInt(document.getElementById("newStudentYear").value);
+        if (!name || !house || !year) {
+            showErrors(["Please fill in all fields."]);
+            return;
+        }
 
-    if (!name || !house || !year) {
-        showValidationErrors(["Please fill in all fields."]);
-        return;
-    }
+        const existing = findExistingStudent(students, name, year);
 
-    const existing = findExistingStudent(window.students, name, year);
-
-    if (!existing) {
-        // ✅ CASE 1: brand new student
-        await window.onCreateStudent({ name, house, year });
-        return;
-    }
-
-    // Student exists globally
-    const alreadyParticipating =
-        window.participation[existing.id]?.length > 0;
-
-    if (alreadyParticipating) {
-        showValidationErrors([
-            "This student already exists and is already participating in this sports day."
-        ]);
-        return;
-    }
-
-    // ✅ CASE 2: student exists, add to this sports day
-    await window.onAddStudentToSportsDay(existing.id);
-});
-
+        if (!existing) {
+            // CASE 1: Brand new student
+            await window.onCreateStudent({ name, house, year });
+            newForm.reset(); // Clear the form
+        } else {
+            // CASE 2: Student already exists
+            showErrors([
+                "A student with this name and year already exists."
+            ]);
+        }
+    });
+}
 
 /* existing callback */
 window.onToggleParticipation = async (eventId, studentId, on) => {
@@ -170,4 +184,3 @@ document.addEventListener("DOMContentLoaded", () => {
     addHouseBtn.addEventListener("click", addHouse);
 
 });
-

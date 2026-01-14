@@ -1,6 +1,6 @@
 export function addHouse() {
     const houseNames = document.getElementById("houseNameContainer");
-    
+
     // Count existing houses to determine the next house number
     const houseCount = houseNames.children.length + 1;
     
@@ -11,31 +11,26 @@ export function addHouse() {
     // Create input element
     const input = document.createElement("input");
     input.id = `house${houseCount}`;
-    input.className = "w-full border rounded px-3 py-2";
+    // input.className = "w-full border rounded px-3 py-2"; // Pico.css styles this automatically
     
     // Append input to label
     label.appendChild(input);
     
     // Append label to container
     houseNames.appendChild(label);
-    
+
+    return input;
 }
 
 export function populateHouseInputs(houses) {
-    const inputs = document.querySelectorAll("#houseNameContainer input");
-    
-    // Populate the first two default fields
+    const existingInputs = Array.from(document.querySelectorAll("#houseNameContainer input"));
+
     houses.forEach((house, index) => {
-        if (index < 2) {
-            // Fill existing fields
-            inputs[index].value = house;
-        }
-        else {
-            // Add new fields for additional houses
-            addHouse();
-            // Get the newly added input and set its value
-            const newInputs = document.querySelectorAll("#houseNameContainer input");
-            newInputs[newInputs.length - 1].value = house;
+        if (index < existingInputs.length) {
+            existingInputs[index].value = house;
+        } else {
+            const newInput = addHouse();
+            newInput.value = house;
         }
     });
 }
@@ -72,4 +67,3 @@ export function getSelectedYearGroups() {
 
     return selected;
 }
-
