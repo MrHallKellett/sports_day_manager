@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify, abort, send_from_directory
 from database import db
 from models import Event, SportsDay, SportsDayParticipant, Student, Settings, EventParticipant, SportsDaySetting, StaffMember
 
+from sqlalchemy import func
 
 bp = Blueprint("routes", __name__)
 
@@ -323,8 +324,10 @@ def list_staff():
     return ok([s.to_dict() for s in staff])
 
 @bp.post("/staff")
-def create_staff():
-    data = request.json
+def create_staff(payload=None):
+    # This function can now be called internally by the CSV upload
+    data = payload or request.json
+
     if not data.get("name"):
         abort(400, "Staff member name is required.")
 
@@ -343,7 +346,11 @@ def create_staff():
     )
     db.session.add(new_staff)
     db.session.commit()
-    return created(new_staff.to_dict())
+
+    if payload: # Internal call
+        return new_staff
+    else: # API call
+        return created(new_staff.to_dict())
 
 @bp.patch("/staff/<int:staff_id>")
 def update_staff(staff_id):
@@ -362,6 +369,53 @@ def delete_staff(staff_id):
     db.session.commit()
     return ok({"message": "staff member deleted"})
 
+@bp.post("/staff/upload")
+def upload_staff():
+    if "file" not in request.files:
+        abort(400, "No file uploaded")
+
+    file = request.files["file"]
+    try:
+        text = file.stream.read().decode("utf-8-sig")
+    except UnicodeDecodeError:
+        abort(400, "CSV file must be UTF-8 encoded")
+
+    if not text.strip():
+        abort(400, "CSV file is empty")
+
+    stream = io.StringIO(text, newline=None)
+    reader = csv.DictReader(stream)
+
+    if not reader.fieldnames:
+        abort(400, "CSV file has no header row")
+
+    headers = {h.strip().lower() for h in reader.fieldnames}
+    required = {"name"}
+    if required - headers:
+        abort(400, f"CSV is missing required column(s): {', '.join(sorted(required))}")
+
+    created_count = 0
+    skipped_count = 0
+    for row_num, raw in enumerate(reader, start=2):
+        name = raw.get("name", "").strip()
+        if not name:
+            continue # Skip empty rows
+
+        # Don't create duplicates
+        # Use func.lower for case-insensitive comparison
+        if StaffMember.query.filter(func.lower(StaffMember.name) == name.lower()).first():
+            skipped_count += 1
+            continue
+
+        roles_str = raw.get("roles", "")
+        roles = [r.strip() for r in roles_str.split(',') if r.strip()]
+
+        # Use the existing create_staff logic to ensure code is generated
+        create_staff_payload = {"name": name, "roles": roles, "assigned_classes": [], "assigned_events": []}
+        create_staff(payload=create_staff_payload)
+        created_count += 1
+
+    return ok({"created_staff": created_count, "skipped_staff": skipped_count})
 
 # -----------------------------
 # EVENT PARTICIPANTS
@@ -423,7 +477,7 @@ def create_student():
     existing = (
         db.session.query(Student)
         .filter(
-            db.func.lower(Student.name) == name.lower(),
+            func.lower(Student.name) == name.lower(),
             Student.year == year
         )
         .one_or_none()

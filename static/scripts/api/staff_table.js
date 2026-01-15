@@ -24,3 +24,15 @@ export async function deleteStaff(staffId) {
     if (!res.ok) throw new Error('Failed to delete staff member');
     return res.json();
 }
+
+export async function uploadStaffCsv(file) {
+    const form = new FormData();
+    form.append("file", file);
+
+    const res = await fetch('/staff/upload', { method: "POST", body: form });
+    if (!res.ok) {
+        const error = await res.text();
+        throw new Error(`Failed to upload staff: ${error}`);
+    }
+    return res.json();
+}

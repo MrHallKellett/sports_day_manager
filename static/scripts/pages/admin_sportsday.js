@@ -2,8 +2,8 @@
 
 import { fetchSportsDay, fetchSportsDaySettings,
          updateSportsDayRequirements, loadConfiguredAgeCategories, addStudentToSportsDay } from "../api/sportsdays.js"
-import { fetchStudentsForSportsDay, createStudent, updateStudent, removeStudentFromSportsDay } from "../api/students.js"
-import { fetchStaff, createStaff as createNewStaff, deleteStaff } from "../api/staff_table.js";
+import { fetchStudentsForSportsDay, createStudent, updateStudent, removeStudentFromSportsDay, uploadStudentsCsv } from "../api/students.js"
+import { fetchStaff, createStaff as createNewStaff, deleteStaff, uploadStaffCsv } from "../api/staff_table.js";
 import { fetchEvents, toggleParticipation, deleteEventById } from "../api/events.js"
 import { loadParticipationSettings, applyYearGroupSettings } from "../ui/sportsday_settings.js"
 
@@ -23,6 +23,7 @@ import { showError, showConfirm } from "../ui/feedback.js";
 import { showErrors } from "../ui/feedback.js";
 
 let duplicateLoaded = false;
+let sportsDayEventNames = []; // Store unique event names for CSV template
 
 export function buildRequirementsPayload() {
     return {
@@ -79,6 +80,7 @@ async function loadEvents(sportsdayId) {
 async function loadStudents(sportsdayId, settings, issues = []) {
     const data = await fetchStudentsForSportsDay(sportsdayId);
 
+    sportsDayEventNames = Object.keys(data.events_by_name);
     /* ✅ newest first */
     data.students.sort((a, b) => b.id - a.id);
 
@@ -189,6 +191,50 @@ async function onStudentRemove(studentId, button) {
     await loadStudents(sportsdayId, settings); // Reload students table
 }
 
+async function onUploadStaff(file) {
+    if (!file) return;
+    try {
+        const result = await uploadStaffCsv(file);
+        let message = `${result.created_staff} new staff member(s) created.`;
+        if (result.skipped_staff > 0) {
+            message += ` ${result.skipped_staff} skipped as they already exist.`;
+        }
+        showToast(message, { type: 'success', duration: 8000 });
+
+        // Only reload if there were changes
+        const settings = await fetchSportsDaySettings(sportsdayId);
+        await loadStaffSection(settings); // Reload staff table
+    } catch (error) {
+        showError(`Upload failed: ${error.message}`);
+    } finally {
+        // Reset file input
+        document.getElementById('staffCsvFile').value = '';
+    }
+}
+
+function onDownloadStudentTemplate() {
+    const headers = ['name', 'house', 'year', 'email', ...sportsDayEventNames];
+    const csvContent = headers.join(',');
+    downloadCsv(csvContent, 'student_template.csv');
+}
+
+function onDownloadStaffTemplate() {
+    const headers = ['name', 'roles'];
+    const csvContent = headers.join(',');
+    downloadCsv(csvContent, 'staff_template.csv');
+}
+
+function downloadCsv(content, fileName) {
+    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", fileName);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
 /* ------------------------------ */
 /* Callbacks for UI               */
 /* ------------------------------ */
@@ -332,6 +378,36 @@ function attachEventListeners(tableId, selector, dataAttribute, callback) {
     });
 }
 
+/**
+ * Sets up the tabbed interface navigation.
+ */
+function setupTabs() {
+    const tabs = document.querySelectorAll('.tab-button');
+    const panes = document.querySelectorAll('.tab-pane');
+
+    function switchTab(tabName) {
+        tabs.forEach(tab => {
+            const isSelected = tab.dataset.tab === tabName;
+            tab.classList.toggle('border-blue-600', isSelected);
+            tab.classList.toggle('text-blue-600', isSelected);
+            tab.classList.toggle('border-transparent', !isSelected);
+            tab.classList.toggle('text-gray-500', !isSelected);
+            tab.classList.toggle('hover:text-gray-700', !isSelected);
+            tab.classList.toggle('hover:border-gray-300', !isSelected);
+        });
+
+        panes.forEach(pane => {
+            pane.style.display = pane.dataset.pane === tabName ? 'block' : 'none';
+        });
+    }
+
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => switchTab(tab.dataset.tab));
+    });
+
+    switchTab('requirements'); // Set the initial tab
+}
+
 const sportsdayId = parseInt(
     window.location.pathname.split("/").pop()
 );
@@ -343,6 +419,12 @@ const saveReqsBtn = document.getElementById("saveRequirementsBtn");
 saveReqsBtn.addEventListener("click", onSaveRequirements);
 const addHouseBtn = document.getElementById("addHouseBtn");
 addHouseBtn.addEventListener("click", addHouse);
+const downloadStudentTemplateBtn = document.getElementById("downloadStudentTemplateBtn");
+downloadStudentTemplateBtn.addEventListener("click", onDownloadStudentTemplate);
+const downloadStaffTemplateBtn = document.getElementById("downloadStaffTemplateBtn");
+downloadStaffTemplateBtn.addEventListener("click", onDownloadStaffTemplate);
+const staffCsvInput = document.getElementById('staffCsvFile');
+staffCsvInput.addEventListener('change', (e) => onUploadStaff(e.target.files[0]));
 
 // --- Restore interactive year group selection ---
 const combineKS4 = document.getElementById("combineKS4");
@@ -380,4 +462,5 @@ if (toastMessage) {
 }
 
 // Load all initial data for the page
+setupTabs();
 loadSportsDay(sportsdayId);
