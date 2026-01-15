@@ -1,4 +1,4 @@
-import { showModal } from "./modal.js";
+import { showModal, showConfirm as showConfirmModal } from "./modal.js";
 
 export function showError(message, options = {}) {
     showModal({
@@ -25,4 +25,8 @@ export function showErrors(errors) {
         title: "Please fix the following",
         bodyHtml: list
     });
+}
+
+export function showConfirm(options) {
+    return showConfirmModal(options);
 }

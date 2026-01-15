@@ -2,9 +2,9 @@
 
 import { fetchSportsDay, fetchSportsDaySettings,
          updateSportsDayRequirements, loadConfiguredAgeCategories, addStudentToSportsDay } from "../api/sportsdays.js"
-import { fetchStudentsForSportsDay, createStudent, updateStudent } from "../api/students.js"
-import { fetchStaff, createStaff as createNewStaff } from "../api/staff_table.js";
-import { fetchEvents, toggleParticipation } from "../api/events.js"
+import { fetchStudentsForSportsDay, createStudent, updateStudent, removeStudentFromSportsDay } from "../api/students.js"
+import { fetchStaff, createStaff as createNewStaff, deleteStaff } from "../api/staff_table.js";
+import { fetchEvents, toggleParticipation, deleteEventById } from "../api/events.js"
 import { loadParticipationSettings, applyYearGroupSettings } from "../ui/sportsday_settings.js"
 
 import { populateHouseInputs, getSelectedYearGroups, addHouse, getHouses } from "../ui/requirements_form.js"
@@ -19,7 +19,7 @@ import { findExistingStudent } from "../domain/students.js";
 import { getValue } from "./helpers.js"
 
 import { showToast } from "../ui/toast.js";
-import { showError } from "../ui/feedback.js";
+import { showError, showConfirm } from "../ui/feedback.js";
 import { showErrors } from "../ui/feedback.js";
 
 let duplicateLoaded = false;
@@ -72,6 +72,8 @@ async function loadEvents(sportsdayId) {
     );
 
     renderEventsTable(sportsDayEvents, warnings, sportsdayId);
+    // Attach listeners after rendering
+    attachEventListeners('eventsTable', '.delete-event', 'eventId', onEventDelete);
 }
 
 async function loadStudents(sportsdayId, settings, issues = []) {
@@ -85,6 +87,8 @@ async function loadStudents(sportsdayId, settings, issues = []) {
 
     // Make student data available for the "add student" form
     attachNewStudentFormHandler(data.students);
+    // Attach listeners for remove buttons
+    attachEventListeners('studentsTable', '.remove-student', 'studentId', onStudentRemove);
 }
 
 async function onSaveRequirements() {
@@ -117,6 +121,8 @@ async function loadStaffSection(settings) {
         ]);
         renderStaffTable(staff, events);
         setupStaffForm(settings, events, onAddStaff);
+        // Attach listeners after rendering
+        attachEventListeners('staffTable', '.delete-staff', 'staffId', onStaffDelete);
     } catch (error) {
         showError(`Failed to load staff section: ${error.message}`);
     }
@@ -127,6 +133,60 @@ async function onAddStaff(payload) {
     showToast(`Staff member ${newStaff.name} created with sign-in code: ${newStaff.sign_in_code}`, { type: 'success', duration: 10000 });
     const [staff, events] = await Promise.all([fetchStaff(), fetchEvents(sportsdayId)]);
     renderStaffTable(staff, events);
+    attachEventListeners('staffTable', '.delete-staff', 'staffId', onStaffDelete);
+}
+
+async function onStaffDelete(staffId) {
+    const confirmed = await showConfirm({
+        title: 'Delete Staff Member',
+        bodyHtml: '<p>Are you sure you want to permanently delete this staff member? This action cannot be undone.</p>',
+        confirmText: 'Delete'
+    });
+    if (!confirmed) return;
+
+    try {
+        await deleteStaff(staffId);
+        showToast('Staff member deleted.', { type: 'success' });
+        const settings = await fetchSportsDaySettings(sportsdayId);
+        await loadStaffSection(settings); // Reload the staff section
+    } catch (error) {
+        showError(`Failed to delete staff member: ${error.message}`);
+    }
+}
+
+async function onEventDelete(eventId) {
+    const confirmed = await showConfirm({
+        title: 'Delete Event',
+        bodyHtml: '<p>Are you sure you want to permanently delete this event and all its participants? This action cannot be undone.</p>',
+        confirmText: 'Delete'
+    });
+    if (!confirmed) return;
+
+    try {
+        await deleteEventById(eventId);
+        showToast('Event deleted.', { type: 'success' });
+        await loadEvents(sportsdayId); // Reload events
+        const settings = await fetchSportsDaySettings(sportsdayId);
+        await loadStudents(sportsdayId, settings); // Reload students as participation has changed
+    } catch (error) {
+        showError(`Failed to delete event: ${error.message}`);
+    }
+}
+
+async function onStudentRemove(studentId, button) {
+    const studentName = button.dataset.studentName;
+    const confirmed = await showConfirm({
+        title: `Remove ${studentName}?`,
+        bodyHtml: `<p>Are you sure you want to remove <strong>${studentName}</strong> from this sports day? Their participation in all events for this day will be removed.</p>`,
+        confirmText: 'Remove'
+    });
+
+    if (!confirmed) return;
+
+    await removeStudentFromSportsDay(sportsdayId, studentId);
+    showToast(`${studentName} removed from sports day.`, { type: 'success' });
+    const settings = await fetchSportsDaySettings(sportsdayId);
+    await loadStudents(sportsdayId, settings); // Reload students table
 }
 
 /* ------------------------------ */
@@ -256,6 +316,21 @@ window.onToggleParticipation = async (eventId, studentId, on) => {
     }
     return true; // Return true for both adding and removing
 };
+
+/**
+ * Generic helper to attach delegated event listeners to a table.
+ */
+function attachEventListeners(tableId, selector, dataAttribute, callback) {
+    const table = document.getElementById(tableId);
+    table.addEventListener('click', e => {
+        const target = e.target.closest(selector);
+        if (target) {
+            e.preventDefault();
+            const id = parseInt(target.dataset[dataAttribute]);
+            callback(id, target);
+        }
+    });
+}
 
 const sportsdayId = parseInt(
     window.location.pathname.split("/").pop()

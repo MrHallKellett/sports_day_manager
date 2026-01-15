@@ -355,6 +355,14 @@ def update_staff(staff_id):
     db.session.commit()
     return ok(staff.to_dict())
 
+@bp.delete("/staff/<int:staff_id>")
+def delete_staff(staff_id):
+    staff = StaffMember.query.get_or_404(staff_id)
+    db.session.delete(staff)
+    db.session.commit()
+    return ok({"message": "staff member deleted"})
+
+
 # -----------------------------
 # EVENT PARTICIPANTS
 # -----------------------------
@@ -513,6 +521,29 @@ def add_student_to_sportsday(sd_id):
         "student_id": student.id
     })
 
+@bp.delete("/sportsdays/<int:sd_id>/students/<int:student_id>")
+def remove_student_from_sportsday(sd_id, student_id):
+    link = SportsDayParticipant.query.filter_by(
+        sports_day_id=sd_id,
+        student_id=student_id
+    ).first_or_404()
+
+    # Identify EventParticipant records to delete.
+    # A bulk delete with a join can be problematic. This is a safer method.
+    participant_records_to_delete = (
+        db.session.query(EventParticipant.id)
+        .join(Event, Event.id == EventParticipant.event_id)
+        .filter(Event.sports_day_id == sd_id)
+        .filter(EventParticipant.student_id == student_id)
+    ).all()
+
+    if participant_records_to_delete:
+        ids_to_delete = [r.id for r in participant_records_to_delete]
+        EventParticipant.query.filter(EventParticipant.id.in_(ids_to_delete)).delete(synchronize_session=False)
+
+    db.session.delete(link)
+    db.session.commit()
+    return ok({"message": "student removed from sports day"})
 
 @bp.post("/sportsdays/<int:sd_id>/students/upload")
 def upload_students(sd_id):

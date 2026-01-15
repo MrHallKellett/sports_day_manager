@@ -26,7 +26,10 @@ export function renderStudentsTable({
         <th class="sticky top-0 bg-gray-50 p-2 cursor-pointer" data-column-index="0">Name</th>
         <th class="sticky top-0 bg-gray-50 p-2 cursor-pointer" data-column-index="1">House</th>
         <th class="sticky top-0 bg-gray-50 p-2 cursor-pointer" data-column-index="2">Year</th>
-        ${eventNames.map((n, i) => `<th class="sticky top-0 bg-gray-50 p-2 cursor-pointer" data-column-index="${i + 3}">${n}</th>`).join("")}
+        ${eventNames.map((n, i) => `
+            <th class="sticky top-0 bg-gray-50 p-2 cursor-pointer" data-column-index="${i + 3}">${n}</th>
+        `).join("")}
+        <th class="sticky top-0 bg-gray-50 p-2">Actions</th>
     `;
 
     const filterRow = document.getElementById("student-filter-row");
@@ -39,7 +42,8 @@ export function renderStudentsTable({
                 <select data-filter="event" data-event-index="${i}" class="w-full text-xs p-1">
                     <option value="all">All</option><option value="yes">Yes</option><option value="no">No</option>
                 </select>
-            </th>`).join("")}
+            </th>
+        `).join("")}
     `;
 
     const tbody = document.getElementById("studentsTable");
@@ -160,6 +164,18 @@ function renderStudentRow(
 
         tr.appendChild(td);
     }
+
+    // Actions Cell
+    const actionsTd = document.createElement("td");
+    actionsTd.className = "px-2 py-1";
+    actionsTd.innerHTML = `
+        <button data-student-id="${student.id}"
+                data-student-name="${student.name}"
+                class="remove-student text-red-600 hover:underline text-xs">
+            Remove
+        </button>
+    `;
+    tr.appendChild(actionsTd);
 
     return tr;
 }

@@ -19,4 +19,8 @@ export async function createStaff(payload) {
     return res.json();
 }
 
-// Note: updateStaff would go here for edit functionality
+export async function deleteStaff(staffId) {
+    const res = await fetch(`/staff/${staffId}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('Failed to delete staff member');
+    return res.json();
+}

@@ -33,3 +33,11 @@ export async function createStudent(payload) {
         body: JSON.stringify(payload)
     });
 }
+
+export async function removeStudentFromSportsDay(sportsdayId, studentId) {
+    const res = await fetch(`/sportsdays/${sportsdayId}/students/${studentId}`, {
+        method: "DELETE"
+    });
+    if (!res.ok) throw new Error("Failed to remove student from sports day");
+    return res.json();
+}
