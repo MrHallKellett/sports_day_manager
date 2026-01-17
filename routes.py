@@ -1,20 +1,15 @@
 from flask import Blueprint, request, jsonify, abort, send_from_directory
 from database import db
-from models import Event, SportsDay, SportsDayParticipant, Student, Settings, EventParticipant, SportsDaySetting, StaffMember
+from models import Event, SportsDay, SportsDayParticipant, Student, Settings, EventParticipant, SportsDaySetting, StaffMember, StaffAssignment
 
 from sqlalchemy import func
 
 bp = Blueprint("routes", __name__)
 
-from flask import Flask, request, jsonify, send_from_directory, abort
-from flask_sqlalchemy import SQLAlchemy
 from config import *
 from utils import *
 import random
 import string
-
-import os
-
 import csv
 import io
 
@@ -310,6 +305,79 @@ def duplicate_event(sd_id):
         "new_event_id": new_event.id
     })
 
+@bp.post("/sportsdays/<int:sd_id>/events/upload")
+def upload_events(sd_id):
+    if "file" not in request.files:
+        abort(400, "No file uploaded")
+
+    file = request.files["file"]
+    try:
+        text = file.stream.read().decode("utf-8-sig")
+    except UnicodeDecodeError:
+        abort(400, "CSV file must be UTF-8 encoded")
+
+    if not text.strip():
+        abort(400, "CSV file is empty")
+
+    stream = io.StringIO(text, newline=None)
+    reader = csv.DictReader(stream)
+
+    if not reader.fieldnames:
+        abort(400, "CSV file has no header row")
+
+    headers = {h.strip().lower() for h in reader.fieldnames}
+    required = {"name", "year_group", "category", "result_format"}
+    if required - headers:
+        abort(400, f"CSV is missing required column(s): {', '.join(sorted(required - headers))}")
+
+    _, years_allowed = get_allowed_houses_and_years(sd_id)
+    
+    events_to_create = []
+    errors = []
+    seen_events = set()
+
+    for row_num, raw in enumerate(reader, start=2):
+        name = raw.get("name", "").strip()
+        year_group = raw.get("year_group", "").strip()
+
+        # Validation 1: Duplicate name + year_group in the CSV
+        if (name.lower(), year_group) in seen_events:
+            errors.append(f"Row {row_num}: Duplicate event '{name}' for year group '{year_group}' found in the file.")
+            continue
+        seen_events.add((name.lower(), year_group))
+
+        # Validation 2: Year group not allowed for this sports day
+        if year_group not in years_allowed and year_group not in ["KS4", "KS5"]:
+             # This check is a bit simplistic, a real one would check constituent years
+             errors.append(f"Row {row_num}: Year group '{year_group}' is not enabled for this sports day.")
+             continue
+
+        try:
+            event_data = {
+                "sports_day_id": sd_id,
+                "name": name,
+                "year_group": year_group,
+                "category": raw.get("category", "").strip(),
+                "result_format": raw.get("result_format", "").strip(),
+                "min_participants": int(raw.get("min_participants") or 0),
+                "max_participants": int(raw.get("max_participants") or 999),
+                "scoring_places": int(raw.get("scoring_places") or 0),
+                "points_1st": int(raw.get("points_1st") or 0),
+                "points_nth": int(raw.get("points_nth") or 0),
+                "min_per_house": int(raw.get("min_per_house") or 0),
+                "max_per_house": int(raw.get("max_per_house") or 999)
+            }
+            events_to_create.append(Event(**event_data))
+        except (ValueError, TypeError) as e:
+            errors.append(f"Row {row_num}: Invalid data - {e}")
+
+    if errors:
+        abort(400, "Validation failed: \n" + "\n".join(errors))
+
+    db.session.bulk_save_objects(events_to_create)
+    db.session.commit()
+
+    return ok({"message": f"{len(events_to_create)} events created successfully."})
 
 # -----------------------------
 # STAFF
@@ -318,59 +386,118 @@ def duplicate_event(sd_id):
 def generate_code(length=6):
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=length))
 
-@bp.get("/staff")
-def list_staff():
-    staff = StaffMember.query.all()
-    return ok([s.to_dict() for s in staff])
+@bp.post("/staff/login")
+def staff_login():
+    data = request.get_json()
+    code = data.get("code", "").upper()
 
-@bp.post("/staff")
-def create_staff(payload=None):
-    # This function can now be called internally by the CSV upload
-    data = payload or request.json
+    if code == "ADMIN7":
+        return ok({"redirect": "/admin"})
 
-    if not data.get("name"):
-        abort(400, "Staff member name is required.")
+    assignment = StaffAssignment.query.filter_by(sign_in_code=code).first()
 
-    # Generate a unique sign-in code
+    if not assignment:
+        abort(401, "Invalid sign-in code.")
+
+    return ok({
+        "redirect": f"/staff/dashboard?code={code}"
+    })
+
+@bp.get("/staff/dashboard-data")
+def staff_dashboard_data():
+    code = request.args.get("code")
+    if not code:
+        abort(400, "Missing sign-in code.")
+
+    assignment = StaffAssignment.query.filter_by(sign_in_code=code).first_or_404("Invalid sign-in code.")
+    sports_day = SportsDay.query.get_or_404(assignment.sports_day_id)
+
+    return ok({
+        "assignment": assignment.to_dict(),
+        "sports_day": {
+            "id": sports_day.id,
+            "year": sports_day.year,
+            "status": sports_day.status
+        }
+    })
+
+
+@bp.get("/sportsdays/<int:sd_id>/staff")
+def list_staff_for_sportsday(sd_id):
+    assignments = StaffAssignment.query.filter_by(sports_day_id=sd_id).all()
+    return ok([s.to_dict() for s in assignments])
+
+@bp.post("/sportsdays/<int:sd_id>/staff")
+def add_staff_to_sportsday(sd_id):
+    data = request.json
+    name = data.get("name", "").strip()
+    email = data.get("email", "").strip() or None
+    if not name:
+        abort(400, "Staff name is required.")
+
+    # Find or create the global staff member
+    staff_member = None
+    if email:
+        staff_member = StaffMember.query.filter(func.lower(StaffMember.email) == email.lower()).first()
+        if staff_member and staff_member.name.lower() != name.lower():
+            # Prevent creating a new staff member with an existing email but different name
+            abort(409, f"Email {email} is already registered to {staff_member.name}.")
+
+    if not staff_member:
+        staff_member = StaffMember.query.filter(func.lower(StaffMember.name) == name.lower()).first()
+
+    if not staff_member:
+        staff_member = StaffMember(name=name, email=email)
+        db.session.add(staff_member)
+        db.session.flush() # To get staff_member.id
+    elif email and not staff_member.email:
+        # Add email to existing staff member
+        staff_member.email = email
+
+    # Check if this staff member is already assigned to this sports day
+    existing_assignment = StaffAssignment.query.filter_by(staff_id=staff_member.id, sports_day_id=sd_id).first()
+    if existing_assignment:
+        return abort(409, f"{name} is already assigned to this sports day.")
+
+    # The sign-in code is now part of the StaffMember, not the assignment.
+    # We generate a unique one for each assignment.
     while True:
         code = generate_code()
-        if not StaffMember.query.filter_by(sign_in_code=code).first():
+        if not StaffAssignment.query.filter_by(sign_in_code=code).first():
             break
 
-    new_staff = StaffMember(
-        name=data["name"],
+    new_assignment = StaffAssignment(
+        staff_id=staff_member.id,
+        sports_day_id=sd_id,
         roles=data.get("roles", []),
         assigned_classes=data.get("assigned_classes", []),
         assigned_events=data.get("assigned_events", []),
         sign_in_code=code
     )
-    db.session.add(new_staff)
+    db.session.add(new_assignment)
     db.session.commit()
 
-    if payload: # Internal call
-        return new_staff
-    else: # API call
-        return created(new_staff.to_dict())
+    return created(new_assignment.to_dict())
 
-@bp.patch("/staff/<int:staff_id>")
-def update_staff(staff_id):
-    staff = StaffMember.query.get_or_404(staff_id)
+@bp.patch("/staff/assignments/<int:assignment_id>")
+def update_staff_assignment(assignment_id):
+    assignment = StaffAssignment.query.get_or_404(assignment_id)
     data = request.json
     for key, value in data.items():
-        if hasattr(staff, key):
-            setattr(staff, key, value)
+        if hasattr(assignment, key) and key not in ['id', 'staff_id', 'sports_day_id', 'sign_in_code']:
+            setattr(assignment, key, value)
     db.session.commit()
-    return ok(staff.to_dict())
+    return ok(assignment.to_dict())
 
-@bp.delete("/staff/<int:staff_id>")
-def delete_staff(staff_id):
-    staff = StaffMember.query.get_or_404(staff_id)
-    db.session.delete(staff)
+@bp.delete("/staff/assignments/<int:assignment_id>")
+def delete_staff_assignment(assignment_id):
+    assignment = StaffAssignment.query.get_or_404(assignment_id)
+    db.session.delete(assignment)
     db.session.commit()
-    return ok({"message": "staff member deleted"})
+    return ok({"message": "staff assignment deleted"})
 
-@bp.post("/staff/upload")
-def upload_staff():
+@bp.post("/sportsdays/<int:sd_id>/staff/upload")
+def upload_staff(sd_id):
     if "file" not in request.files:
         abort(400, "No file uploaded")
 
@@ -398,22 +525,44 @@ def upload_staff():
     skipped_count = 0
     for row_num, raw in enumerate(reader, start=2):
         name = raw.get("name", "").strip()
+        email = raw.get("email", "").strip() or None
         if not name:
             continue # Skip empty rows
 
-        # Don't create duplicates
-        # Use func.lower for case-insensitive comparison
-        if StaffMember.query.filter(func.lower(StaffMember.name) == name.lower()).first():
-            skipped_count += 1
-            continue
+        # Find or create the global staff member
+        staff_member = StaffMember.query.filter(func.lower(StaffMember.name) == name.lower()).first()
 
-        roles_str = raw.get("roles", "")
-        roles = [r.strip() for r in roles_str.split(',') if r.strip()]
+        # Check if this staff member is already assigned to this sports day
+        if staff_member:
+            existing_assignment = StaffAssignment.query.filter_by(staff_id=staff_member.id, sports_day_id=sd_id).first()
+            if existing_assignment:
+                skipped_count += 1
+                continue # Skip to next row
 
-        # Use the existing create_staff logic to ensure code is generated
-        create_staff_payload = {"name": name, "roles": roles, "assigned_classes": [], "assigned_events": []}
-        create_staff(payload=create_staff_payload)
-        created_count += 1
+        # Create the staff member if they don't exist globally
+        if not staff_member:
+            staff_member = StaffMember(name=name, email=email)
+            db.session.add(staff_member)
+            db.session.flush() # To get staff_member.id before creating assignment
+            created_count += 1
+        else:
+            skipped_count +=1
+
+        # Generate a unique sign-in code for this assignment
+        while True:
+            code = generate_code()
+            if not StaffAssignment.query.filter_by(sign_in_code=code).first():
+                break
+
+        new_assignment = StaffAssignment(
+            staff_id=staff_member.id,
+            sports_day_id=sd_id,
+            roles=[r.strip() for r in raw.get("roles", "").split(',') if r.strip()],
+            sign_in_code=code
+        )
+        db.session.add(new_assignment)
+
+    db.session.commit()
 
     return ok({"created_staff": created_count, "skipped_staff": skipped_count})
 
@@ -870,10 +1019,18 @@ def admin_event_edit(eid):
 def student_login_page():
     return send_from_directory("static", "student_login.html")
 
+@bp.get("/staff/login")
+def staff_login_page():
+    return send_from_directory("static", "staff_login.html")
+
 
 @bp.get("/student/dashboard")
 def student_dashboard_page():
     return send_from_directory("static", "student_dashboard.html")
+
+@bp.get("/staff/dashboard")
+def staff_dashboard_page():
+    return send_from_directory("static", "staff_dashboard.html")
 
 
 

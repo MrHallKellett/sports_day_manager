@@ -11,7 +11,7 @@
 
 <body class="bg-gray-100 min-h-screen">
 
-<div class="max-w-4xl mx-auto p-4">
+<div class="max-w-7xl mx-auto p-4">
 
     <h1 id="title" class="text-2xl font-bold mb-4">Sports Day</h1>
 
@@ -155,17 +155,20 @@
             </span>
         </div>
 
-        <table class="min-w-full text-sm">
-            <thead>
-                <tr class="text-left border-b">
-                    <th class="py-2">Name</th>
-                    <th class="py-2">Year</th>
-                    <th class="py-2">Category</th>
-                    <th class="py-2">Actions</th>
-                </tr>
-            </thead>
-            <tbody id="eventsTable"></tbody>
-        </table>
+        <div class="mt-4 overflow-x-auto">
+            <table id="eventsTable" class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <!-- This content is replaced by JS -->
+                </thead>
+                <tbody id="eventsTableBody" class="bg-white divide-y divide-gray-200">
+                    <tr>
+                        <td colspan="12" class="py-4 text-center text-gray-500">
+                            Loading events...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
             </div>
         </div>
 
@@ -268,6 +271,9 @@
                 <div>
                     <label for="newStaffName" class="block text-sm font-medium text-gray-700">Staff Member Name</label>
                     <input type="text" id="newStaffName" class="mt-1 block w-full border rounded px-3 py-2" required>
+
+                    <label for="newStaffEmail" class="block text-sm font-medium text-gray-700 mt-4">Email (Optional)</label>
+                    <input type="email" id="newStaffEmail" class="mt-1 block w-full border rounded px-3 py-2">
 
                     <fieldset class="mt-4">
                         <legend class="text-sm font-medium text-gray-700">Roles</legend>

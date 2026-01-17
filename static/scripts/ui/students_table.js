@@ -23,13 +23,13 @@ export function renderStudentsTable({
 
     const headerRow = document.getElementById("student-header-row");
     headerRow.innerHTML = `
-        <th class="sticky top-0 bg-gray-50 p-2 cursor-pointer" data-column-index="0">Name</th>
-        <th class="sticky top-0 bg-gray-50 p-2 cursor-pointer" data-column-index="1">House</th>
-        <th class="sticky top-0 bg-gray-50 p-2 cursor-pointer" data-column-index="2">Year</th>
+        <th class="sticky top-0 bg-gray-50 p-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" data-column-index="0">Name</th>
+        <th class="sticky top-0 bg-gray-50 p-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" data-column-index="1">House</th>
+        <th class="sticky top-0 bg-gray-50 p-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" data-column-index="2">Year</th>
         ${eventNames.map((n, i) => `
-            <th class="sticky top-0 bg-gray-50 p-2 cursor-pointer" data-column-index="${i + 3}">${n}</th>
+            <th class="sticky top-0 bg-gray-50 p-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" data-column-index="${i + 3}">${n}</th>
         `).join("")}
-        <th class="sticky top-0 bg-gray-50 p-2">Actions</th>
+        <th class="sticky top-0 bg-gray-50 p-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
     `;
 
     const filterRow = document.getElementById("student-filter-row");

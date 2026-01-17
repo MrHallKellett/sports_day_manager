@@ -135,11 +135,37 @@ class SportsDayParticipant(db.Model):
 class StaffMember(db.Model):
     __tablename__ = "staff_members"
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String, nullable=False)
+    name = db.Column(db.String, nullable=False, unique=True)
+    email = db.Column(db.String, nullable=True, unique=True)
+
+    assignments = db.relationship("StaffAssignment", backref="staff_member", cascade="all, delete-orphan")
+
+    def to_dict(self):
+        return {
+            "id": self.id, 
+            "name": self.name,
+            "email": self.email
+        }
+
+class StaffAssignment(db.Model):
+    __tablename__ = "staff_assignments"
+    id = db.Column(db.Integer, primary_key=True)
+    staff_id = db.Column(db.Integer, db.ForeignKey("staff_members.id"), nullable=False)
+    sports_day_id = db.Column(db.Integer, db.ForeignKey("sports_day.id"), nullable=False)
     sign_in_code = db.Column(db.String, unique=True, nullable=False)
     roles = db.Column(JSON, nullable=False, default=[])
     assigned_classes = db.Column(JSON, nullable=True, default=[])
     assigned_events = db.Column(JSON, nullable=True, default=[])
 
     def to_dict(self):
-        return {"id": self.id, "name": self.name, "sign_in_code": self.sign_in_code, "roles": self.roles, "assigned_classes": self.assigned_classes, "assigned_events": self.assigned_events}
+        return {
+            "id": self.id,
+            "staff_id": self.staff_id,
+            "sports_day_id": self.sports_day_id,
+            "sign_in_code": self.sign_in_code,
+            "roles": self.roles,
+            "assigned_classes": self.assigned_classes,
+            "assigned_events": self.assigned_events,
+            "name": self.staff_member.name,
+            "email": self.staff_member.email
+        }

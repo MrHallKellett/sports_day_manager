@@ -11,7 +11,7 @@ def create_app():
     db.init_app(app)
 
     # import models so SQLAlchemy knows them
-    from models import SportsDay, Event, Student
+    from models import SportsDay, Event, Student, StaffMember, StaffAssignment
 
     with app.app_context():
         db.create_all()

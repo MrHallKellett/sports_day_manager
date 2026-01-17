@@ -2,9 +2,9 @@
 
 import { fetchSportsDay, fetchSportsDaySettings,
          updateSportsDayRequirements, loadConfiguredAgeCategories, addStudentToSportsDay } from "../api/sportsdays.js"
-import { fetchStudentsForSportsDay, createStudent, updateStudent, removeStudentFromSportsDay, uploadStudentsCsv } from "../api/students.js"
-import { fetchStaff, createStaff as createNewStaff, deleteStaff, uploadStaffCsv } from "../api/staff_table.js";
-import { fetchEvents, toggleParticipation, deleteEventById } from "../api/events.js"
+import { fetchStudentsForSportsDay, createStudent, updateStudent, removeStudentFromSportsDay } from "../api/students.js"
+import { fetchStaff, createStaff as createNewStaff, deleteStaff, uploadStaffCsv } from "../api/staff_table.js"
+import { fetchEvents, toggleParticipation, deleteEventById, uploadEventsCsv } from "../api/events.js"
 import { loadParticipationSettings, applyYearGroupSettings } from "../ui/sportsday_settings.js"
 
 import { populateHouseInputs, getSelectedYearGroups, addHouse, getHouses } from "../ui/requirements_form.js"
@@ -12,7 +12,6 @@ import { populateHouseInputs, getSelectedYearGroups, addHouse, getHouses } from 
 import { renderEventsTable } from "../ui/events_table.js"
 import { renderStudentsTable } from "../ui/students_table.js"
 import { setupStaffForm, renderStaffTable } from "../ui/staff_table.js"
-
 import { computeEventWarnings } from "../domain/events.js";
 import { indexIssues } from "../domain/issues.js";
 import { findExistingStudent } from "../domain/students.js";
@@ -22,7 +21,7 @@ import { showToast } from "../ui/toast.js";
 import { showError, showConfirm } from "../ui/feedback.js";
 import { showErrors } from "../ui/feedback.js";
 
-let duplicateLoaded = false;
+let currentEvents = []; // Store current events for CSV download
 let sportsDayEventNames = []; // Store unique event names for CSV template
 
 export function buildRequirementsPayload() {
@@ -61,18 +60,19 @@ async function loadSportsDay(sportsdayId) {
 }
 
 async function loadEvents(sportsdayId) {
-    const [sportsDayEvents, allowedAgeCategories] = await Promise.all([
+    const [sportsDayEvents, allowedAgeCategories, settings] = await Promise.all([
         fetchEvents(sportsdayId),
-        loadConfiguredAgeCategories(sportsdayId)
+        loadConfiguredAgeCategories(sportsdayId),
+        fetchSportsDaySettings(sportsdayId) // Needed for inline editing dropdowns
     ]);
 
-
+    currentEvents = sportsDayEvents; // Cache for CSV download
     const warnings = computeEventWarnings(
         sportsDayEvents,
         allowedAgeCategories
     );
 
-    renderEventsTable(sportsDayEvents, warnings, sportsdayId);
+    renderEventsTable(sportsDayEvents, warnings, sportsdayId, settings);
     // Attach listeners after rendering
     attachEventListeners('eventsTable', '.delete-event', 'eventId', onEventDelete);
 }
@@ -118,7 +118,7 @@ async function onSaveRequirements() {
 async function loadStaffSection(settings) {
     try {
         const [staff, events] = await Promise.all([
-            fetchStaff(),
+            fetchStaff(sportsdayId),
             fetchEvents(sportsdayId)
         ]);
         renderStaffTable(staff, events);
@@ -131,14 +131,14 @@ async function loadStaffSection(settings) {
 }
 
 async function onAddStaff(payload) {
-    const newStaff = await createNewStaff(payload);
+    const newStaff = await createNewStaff(sportsdayId, payload);
     showToast(`Staff member ${newStaff.name} created with sign-in code: ${newStaff.sign_in_code}`, { type: 'success', duration: 10000 });
-    const [staff, events] = await Promise.all([fetchStaff(), fetchEvents(sportsdayId)]);
+    const [staff, events] = await Promise.all([fetchStaff(sportsdayId), fetchEvents(sportsdayId)]);
     renderStaffTable(staff, events);
     attachEventListeners('staffTable', '.delete-staff', 'staffId', onStaffDelete);
 }
 
-async function onStaffDelete(staffId) {
+async function onStaffDelete(assignmentId) {
     const confirmed = await showConfirm({
         title: 'Delete Staff Member',
         bodyHtml: '<p>Are you sure you want to permanently delete this staff member? This action cannot be undone.</p>',
@@ -147,7 +147,7 @@ async function onStaffDelete(staffId) {
     if (!confirmed) return;
 
     try {
-        await deleteStaff(staffId);
+        await deleteStaff(assignmentId);
         showToast('Staff member deleted.', { type: 'success' });
         const settings = await fetchSportsDaySettings(sportsdayId);
         await loadStaffSection(settings); // Reload the staff section
@@ -194,7 +194,7 @@ async function onStudentRemove(studentId, button) {
 async function onUploadStaff(file) {
     if (!file) return;
     try {
-        const result = await uploadStaffCsv(file);
+        const result = await uploadStaffCsv(sportsdayId, file);
         let message = `${result.created_staff} new staff member(s) created.`;
         if (result.skipped_staff > 0) {
             message += ` ${result.skipped_staff} skipped as they already exist.`;
@@ -219,9 +219,24 @@ function onDownloadStudentTemplate() {
 }
 
 function onDownloadStaffTemplate() {
-    const headers = ['name', 'roles'];
+    const headers = ['name', 'email', 'roles'];
     const csvContent = headers.join(',');
     downloadCsv(csvContent, 'staff_template.csv');
+}
+
+function convertToCsv(data) {
+    if (data.length === 0) return '';
+    const headers = Object.keys(data[0]);
+    const csvRows = [headers.join(',')];
+
+    for (const row of data) {
+        const values = headers.map(header => {
+            const escaped = ('' + (row[header] ?? '')).replace(/"/g, '""');
+            return `"${escaped}"`;
+        });
+        csvRows.push(values.join(','));
+    }
+    return csvRows.join('\n');
 }
 
 function downloadCsv(content, fileName) {
@@ -405,62 +420,75 @@ function setupTabs() {
         tab.addEventListener('click', () => switchTab(tab.dataset.tab));
     });
 
-    switchTab('requirements'); // Set the initial tab
+    // Check session storage for a tab to activate
+    const activeTab = sessionStorage.getItem('activeTab');
+    if (activeTab) {
+        switchTab(activeTab);
+        sessionStorage.removeItem('activeTab'); // Clear after use
+    } else {
+        switchTab('requirements'); // Set the default initial tab
+    }
 }
 
 const sportsdayId = parseInt(
     window.location.pathname.split("/").pop()
 );
 
-// --- Entry Point ---
+document.addEventListener('DOMContentLoaded', () => {
+    // --- Entry Point ---
 
-// Set up event listeners for buttons
-const saveReqsBtn = document.getElementById("saveRequirementsBtn");
-saveReqsBtn.addEventListener("click", onSaveRequirements);
-const addHouseBtn = document.getElementById("addHouseBtn");
-addHouseBtn.addEventListener("click", addHouse);
-const downloadStudentTemplateBtn = document.getElementById("downloadStudentTemplateBtn");
-downloadStudentTemplateBtn.addEventListener("click", onDownloadStudentTemplate);
-const downloadStaffTemplateBtn = document.getElementById("downloadStaffTemplateBtn");
-downloadStaffTemplateBtn.addEventListener("click", onDownloadStaffTemplate);
-const staffCsvInput = document.getElementById('staffCsvFile');
-staffCsvInput.addEventListener('change', (e) => onUploadStaff(e.target.files[0]));
+    // Set up event listeners for buttons
+    const saveReqsBtn = document.getElementById("saveRequirementsBtn");
+    if (saveReqsBtn) saveReqsBtn.addEventListener("click", onSaveRequirements);
+    const addHouseBtn = document.getElementById("addHouseBtn");
+    if (addHouseBtn) addHouseBtn.addEventListener("click", addHouse);
+    const downloadStudentTemplateBtn = document.getElementById("downloadStudentTemplateBtn");
+    if (downloadStudentTemplateBtn) downloadStudentTemplateBtn.addEventListener("click", onDownloadStudentTemplate);
+    const downloadStaffTemplateBtn = document.getElementById("downloadStaffTemplateBtn");
+    if (downloadStaffTemplateBtn) downloadStaffTemplateBtn.addEventListener("click", onDownloadStaffTemplate);
+    const downloadEventsTemplateBtn = document.getElementById("downloadEventsTemplateBtn");
+    if (downloadEventsTemplateBtn) downloadEventsTemplateBtn.addEventListener("click", onDownloadEventsTemplate);
+    const eventsCsvInput = document.getElementById('eventsCsvFile');
+    if (eventsCsvInput) eventsCsvInput.addEventListener('change', (e) => onUploadEvents(e.target.files[0]));
+    const staffCsvInput = document.getElementById('staffCsvFile');
+    if (staffCsvInput) staffCsvInput.addEventListener('change', (e) => onUploadStaff(e.target.files[0]));
 
-// --- Restore interactive year group selection ---
-const combineKS4 = document.getElementById("combineKS4");
-const combineKS5 = document.getElementById("combineKS5");
-const y10 = document.getElementById("y10");
-const y11 = document.getElementById("y11");
-const y12 = document.getElementById("y12");
-const y13 = document.getElementById("y13");
+    // --- Restore interactive year group selection ---
+    const combineKS4 = document.getElementById("combineKS4");
+    const combineKS5 = document.getElementById("combineKS5");
+    const y10 = document.getElementById("y10");
+    const y11 = document.getElementById("y11");
+    const y12 = document.getElementById("y12");
+    const y13 = document.getElementById("y13");
 
-combineKS4.addEventListener("change", () => {
-    const disabled = combineKS4.checked;
-    y10.disabled = disabled;
-    y11.disabled = disabled;
-    if (disabled) {
-        y10.checked = false;
-        y11.checked = false;
+    combineKS4.addEventListener("change", () => {
+        const disabled = combineKS4.checked;
+        y10.disabled = disabled;
+        y11.disabled = disabled;
+        if (disabled) {
+            y10.checked = false;
+            y11.checked = false;
+        }
+    });
+
+    combineKS5.addEventListener("change", () => {
+        const disabled = combineKS5.checked;
+        y12.disabled = disabled;
+        y13.disabled = disabled;
+        if (disabled) {
+            y12.checked = false;
+            y13.checked = false;
+        }
+    });
+
+    // Check for a toast message from a redirect (e.g., after editing an event)
+    const toastMessage = sessionStorage.getItem('toastMessage');
+    if (toastMessage) {
+        showToast(toastMessage, { type: 'info', duration: 7000 });
+        sessionStorage.removeItem('toastMessage'); // Clear after showing
     }
+
+    // Load all initial data for the page
+    setupTabs();
+    loadSportsDay(sportsdayId);
 });
-
-combineKS5.addEventListener("change", () => {
-    const disabled = combineKS5.checked;
-    y12.disabled = disabled;
-    y13.disabled = disabled;
-    if (disabled) {
-        y12.checked = false;
-        y13.checked = false;
-    }
-});
-
-// Check for a toast message from a redirect (e.g., after editing an event)
-const toastMessage = sessionStorage.getItem('toastMessage');
-if (toastMessage) {
-    showToast(toastMessage, { type: 'info', duration: 7000 });
-    sessionStorage.removeItem('toastMessage'); // Clear after showing
-}
-
-// Load all initial data for the page
-setupTabs();
-loadSportsDay(sportsdayId);

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Staff Dashboard</title>
+<link rel="stylesheet" href="/static/style.css"/>
+<script src="https://cdn.tailwindcss.com"></script>
+
+</head>
+
+<body class="bg-gray-100 min-h-screen">
+
+<div class="max-w-4xl mx-auto p-4">
+
+    <div class="flex justify-between items-center">
+        <h1 id="title" class="text-2xl font-bold mb-4">Staff Dashboard</h1>
+        <div>
+            <span id="staffName" class="text-gray-600 mr-4"></span>
+            <button onclick="logout()" class="text-sm text-blue-600 hover:underline">Logout</button>
+        </div>
+    </div>
+
+    <!-- TABS -->
+    <div id="tabs-container" class="mb-4 border-b border-gray-200">
+        <nav class="-mb-px flex space-x-6" aria-label="Tabs">
+            <!-- Tabs will be inserted here by JS -->
+        </nav>
+    </div>
+
+    <!-- TAB PANES -->
+    <div id="tab-panes-container">
+        <!-- Panes will be inserted here by JS -->
+    </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script type="module">
+    import { showToast } from '/static/scripts/ui/toast.js';
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get('code');
+
+    if (!code) {
+        window.location.href = '/staff/login';
+    }
+
+    let assignment = null;
+    let sportsDay = null;
+
+    function logout() {
+        // For staff, logging out just means going back to the login page.
+        window.location.href = '/staff/login';
+    }
+    window.logout = logout;
+
+    async function loadDashboard() {
+        const res = await fetch(`/staff/dashboard-data?code=${code}`);
+        if (!res.ok) {
+            showToast('Could not load dashboard. Invalid session.', { type: 'error' });
+            setTimeout(() => window.location.href = '/staff/login', 2000);
+            return;
+        }
+        const data = await res.json();
+        assignment = data.assignment;
+        sportsDay = data.sports_day;
+
+        document.getElementById('title').textContent = `Sports Day ${sportsDay.year}`;
+        document.getElementById('staffName').textContent = `Logged in as: ${assignment.staff_name}`;
+
+        renderTabsAndPanes();
+    }
+
+    function renderTabsAndPanes() {
+        const tabsContainer = document.getElementById('tabs-container').querySelector('nav');
+        const panesContainer = document.getElementById('tab-panes-container');
+        tabsContainer.innerHTML = '';
+        panesContainer.innerHTML = '';
+
+        if (assignment.roles.includes('Event Steward')) {
+            tabsContainer.innerHTML += `<button data-tab="students" class="tab-button whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm border-blue-600 text-blue-600">Students</button>`;
+            tabsContainer.innerHTML += `<button data-tab="results" class="tab-button whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300">Results</button>`;
+
+            panesContainer.innerHTML += `<div id="students-pane" data-pane="students" class="tab-pane">STUDENTS PANE (TODO)</div>`;
+            panesContainer.innerHTML += `<div id="results-pane" data-pane="results" class="tab-pane" style="display: none;"></div>`;
+
+            const resultsPane = document.getElementById('results-pane');
+            if (sportsDay.status === 'registering') {
+                resultsPane.innerHTML = `<div class="bg-white shadow p-4 rounded"><p>Sports Day ${sportsDay.year} is still in the "Registering Participants" stage. Results cannot be recorded yet.</p></div>`;
+            } else {
+                resultsPane.innerHTML = `RESULTS PANE (TODO)`;
+            }
+        }
+    }
+
+    loadDashboard();
+</script>
+
+</body>
+</html>
