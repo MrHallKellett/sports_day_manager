@@ -3,7 +3,7 @@
 import { fetchSportsDay, fetchSportsDaySettings,
          updateSportsDayRequirements, loadConfiguredAgeCategories, addStudentToSportsDay } from "../api/sportsdays.js"
 import { fetchStudentsForSportsDay, createStudent, updateStudent, removeStudentFromSportsDay } from "../api/students.js"
-import { fetchStaff, createStaff as createNewStaff, deleteStaff, uploadStaffCsv } from "../api/staff_table.js";
+import { fetchStaff, createStaff as createNewStaff, deleteStaff, uploadStaffCsv } from "../api/staff_table.js"
 import { fetchEvents, toggleParticipation, deleteEventById, uploadEventsCsv, fetchDuplicateEventOptions, duplicateEvent } from "../api/events.js";
 import { loadParticipationSettings, applyYearGroupSettings } from "../ui/sportsday_settings.js"
 
@@ -20,6 +20,7 @@ import { getValue } from "./helpers.js"
 import { showToast } from "../ui/toast.js";
 import { showError, showConfirm } from "../ui/feedback.js";
 import { showErrors } from "../ui/feedback.js";
+import { uploadStudentsCsv } from "../api/students.js";
 
 let currentEvents = []; // Store current events for CSV download
 let sportsDayEventNames = []; // Store unique event names for CSV template
@@ -57,6 +58,33 @@ async function loadSportsDay(sportsdayId) {
     await loadEvents(sportsdayId);
     await loadStudents(sportsdayId, settings);
     await loadStaffSection(settings);
+    await loadHistory(sportsdayId);
+}
+async function loadHistory(sportsdayId) { // This function was duplicated, this is the correct one.
+    try {
+        const res = await fetch(`/sportsdays/${sportsdayId}/history`);
+        if (!res.ok) throw new Error('Failed to load history');
+        const history = await res.json();
+        renderHistoryTable(history);
+    } catch (error) {
+        showError(`Failed to load history: ${error.message}`);
+    }
+}
+
+function renderHistoryTable(history) {
+    const tbody = document.getElementById('historyTable');
+    tbody.innerHTML = '';
+    if (history.length === 0) {
+        tbody.innerHTML = '<tr><td class="py-4 text-center text-gray-500">No history found.</td></tr>';
+        return;
+    }
+
+    history.forEach(log => {
+        const tr = document.createElement('tr');
+        tr.className = 'border-b';
+        tr.innerHTML = `<td class="p-2 align-top text-gray-500 whitespace-nowrap">${new Date(log.timestamp).toLocaleString()}</td><td class="p-2"><span class="font-semibold">${log.user_info}</span> ${log.action}</td>`;
+        tbody.appendChild(tr);
+    });
 }
 
 async function loadEvents(sportsdayId) {
@@ -212,6 +240,59 @@ async function onUploadStaff(file) {
     }
 }
 
+async function onUploadStudents(file) {
+    if (!file) return;
+    const warningsDiv = document.getElementById('uploadWarnings');
+    warningsDiv.classList.add('hidden'); // Hide previous warnings
+
+    try {
+        const res = await uploadStudentsCsv(sportsdayId, file);
+        const result = await res.json();
+
+        if (!res.ok) {
+            // The backend sends a JSON error object on failure
+            throw new Error(result.message || 'An unknown error occurred during upload.');
+        }
+
+        let message = `${result.created} new student(s) created, ${result.linked} linked to this sports day, and ${result.updated} updated.`;
+        showToast(message, { type: 'success', duration: 8000 });
+
+        let warningsHtml = '';
+
+        if (result.updates && result.updates.length > 0) {
+            warningsHtml += `
+                <h4 class="font-bold mb-2 text-blue-700">Updated Students:</h4>
+                <ul class="list-disc pl-5 text-sm mb-4">
+                    ${result.updates.map(u => `<li><strong>${u.name} (Y${u.year})</strong>: ${u.change}</li>`).join('')}
+                </ul>`;
+        }
+
+        if (result.issues && result.issues.length > 0) {
+            warningsHtml += `
+                <h4 class="font-bold mb-2 text-red-700">Skipped Rows:</h4>
+                <p class="text-sm mb-2">The following students were in the file but could not be processed:</p>
+                <ul class="list-disc pl-5 text-sm">
+                    ${result.issues.map(i => `<li><strong>Row ${i.row} (${i.name})</strong>: ${i.reason}</li>`).join('')}
+                </ul>`;
+        }
+
+        if (warningsHtml) {
+            warningsDiv.innerHTML = warningsHtml;
+            warningsDiv.classList.remove('hidden');
+        } else {
+            warningsDiv.classList.add('hidden');
+        }
+
+        const settings = await fetchSportsDaySettings(sportsdayId);
+        await loadStudents(sportsdayId, settings, result.issues);
+    } catch (error) {
+        showError(`Upload failed: ${error.message}`);
+    } finally {
+        // Reset file input to allow re-uploading the same file
+        document.getElementById('csvFile').value = '';
+    }
+}
+
 async function onToggleDuplicateDropdown() {
     const dropdown = document.getElementById('duplicateDropdown');
     const optionsContainer = document.getElementById('duplicateOptionsContainer');
@@ -268,7 +349,7 @@ function closeDuplicateDropdownOnClickOutside(event) {
 }
 
 function onDownloadStudentTemplate() {
-    const headers = ['name', 'house', 'year', 'email', ...sportsDayEventNames];
+    const headers = ['name', 'house', 'year', ...sportsDayEventNames];
     const csvContent = headers.join(',');
     downloadCsv(csvContent, 'student_template.csv');
 }
@@ -476,12 +557,9 @@ function setupTabs() {
     });
 
     // Check session storage for a tab to activate
-    const activeTab = sessionStorage.getItem('activeTab');
+    const activeTab = sessionStorage.getItem('activeAdminTab') || 'requirements';
     if (activeTab) {
         switchTab(activeTab);
-        sessionStorage.removeItem('activeTab'); // Clear after use
-    } else {
-        switchTab('requirements'); // Set the default initial tab
     }
 }
 
@@ -490,6 +568,16 @@ const sportsdayId = parseInt(
 );
 
 document.addEventListener('DOMContentLoaded', () => {
+    // --- Security Check ---
+    const authCode = sessionStorage.getItem('staffAuthCode');
+    if (!authCode) {
+        // If no auth code is present at all, redirect to login.
+        window.location.href = '/staff/login';
+        return; // Stop further execution
+    }
+    // The backend will handle if this specific code is valid for this sportsdayId.
+    // This client-side check is a first line of defense.
+
     // --- Entry Point ---
 
     // Set up event listeners for buttons
@@ -505,6 +593,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (downloadEventsTemplateBtn) downloadEventsTemplateBtn.addEventListener("click", onDownloadEventsTemplate);
     const eventsCsvInput = document.getElementById('eventsCsvFile');
     if (eventsCsvInput) eventsCsvInput.addEventListener('change', (e) => onUploadEvents(e.target.files[0]));
+    const studentCsvInput = document.getElementById('csvFile');
+    if (studentCsvInput) studentCsvInput.addEventListener('change', (e) => onUploadStudents(e.target.files[0]));
     const duplicateEventBtn = document.getElementById('duplicateEventBtn');
     if (duplicateEventBtn) duplicateEventBtn.addEventListener('click', onToggleDuplicateDropdown);
     const staffCsvInput = document.getElementById('staffCsvFile');

@@ -6,6 +6,27 @@
 <title>Sports Day Management</title>
 <link rel="stylesheet" href="/static/style.css"/>
 <script src="https://cdn.tailwindcss.com"></script>
+<style>
+    .event-header-cell {
+        height: 140px; /* Adjust height to fit rotated text */
+        width: 60px;   /* Fixed width for the column */
+        min-width: 40px;
+        max-width: 40px;
+        position: relative;
+        vertical-align: bottom;
+        white-space: nowrap;
+    }
+    .event-header-cell > div {
+        position: relative;
+        transform: rotate(-65deg);
+        width: 30px;
+        transform-origin: bottom left;
+    }
+    .event-header-cell > div > span {
+        display: inline-block;
+        padding-left: 10px;
+    }
+</style>
 
 </head>
 
@@ -34,6 +55,7 @@
             <button data-tab="events" class="tab-button whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm">Events</button>
             <button data-tab="students" class="tab-button whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm">Students</button>
             <button data-tab="staff" class="tab-button whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm">Staff</button>
+            <button data-tab="history" class="tab-button whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm">History</button>
         </nav>
     </div>
 
@@ -274,6 +296,7 @@
                         <div class="mt-2 space-y-2">
                             <label class="flex items-center"><input type="checkbox" id="roleFormTutor" name="roles" value="Form Tutor" class="mr-2"> Form Tutor</label>
                             <label class="flex items-center"><input type="checkbox" id="roleEventSteward" name="roles" value="Event Steward" class="mr-2"> Event Steward</label>
+                            <label class="flex items-center"><input type="checkbox" id="roleAdmin" name="roles" value="Admin" class="mr-2"> Admin</label>
                         </div>
                     </fieldset>
                 </div>
@@ -307,6 +330,21 @@
         </div>
             </div>
         </div>
+
+        <!-- HISTORY PANE -->
+        <div id="history-pane" data-pane="history" class="tab-pane">
+            <div class="bg-white shadow p-4 rounded">
+                <h2 class="font-semibold text-lg mb-4">Change History</h2>
+                <div class="overflow-auto h-[70vh] border rounded">
+                    <table class="min-w-full text-sm">
+                        <tbody id="historyTable">
+                            <tr><td class="py-4 text-center text-gray-500">Loading history...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
     </div>
 </div>
 

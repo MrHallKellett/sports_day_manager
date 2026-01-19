@@ -1,8 +1,9 @@
 from flask import Blueprint, request, jsonify, abort, send_from_directory
 from database import db
-from models import Event, SportsDay, SportsDayParticipant, Student, Settings, EventParticipant, SportsDaySetting, StaffMember, StaffAssignment
+from models import Event, SportsDay, SportsDayParticipant, Student, Settings, EventParticipant, SportsDaySetting, StaffMember, StaffAssignment, AuditLog
 
 from sqlalchemy import func
+from datetime import datetime
 
 bp = Blueprint("routes", __name__)
 
@@ -12,6 +13,30 @@ import random
 import string
 import csv
 import io
+
+def log_action(sports_day_id, user_info, action):
+    log = AuditLog(
+        sports_day_id=sports_day_id,
+        user_info=user_info,
+        action=action
+    )
+    db.session.add(log)
+
+def get_user_info_from_request():
+    """
+    Determines the user identity for audit logging based on the request.
+    Checks for a staff sign-in code in the headers first.
+    """
+    auth_code = request.headers.get('X-Auth-Code')
+    if auth_code:
+        assignment = StaffAssignment.query.filter_by(sign_in_code=auth_code).first()
+        if assignment:
+            # e.g., "Zonky (Admin)" or "Smith (Form Tutor)"
+            roles = ', '.join(assignment.roles)
+            return f"{assignment.staff_member.name} ({roles})"
+    if auth_code == '999999':
+        return "Super Admin"
+    return "Unknown User" # Default if no staff code is found
 
 
 def ok(data): return jsonify(data), 200
@@ -112,6 +137,11 @@ def get_settings(sd_id):
 @bp.patch("/sportsdays/<int:sd_id>/settings")
 def update_settings(sd_id):
     data = request.get_json(force=True)
+    auth_code = request.headers.get('X-Auth-Code')
+
+    # Security Check
+    if not is_authorized_for_sportsday(auth_code, sd_id):
+        abort(403, "You are not authorized to modify settings for this sports day.")
 
     for key, value in data.items():
         print(f"setting {key} to {value}")
@@ -121,13 +151,16 @@ def update_settings(sd_id):
         ).first()
 
         if row is None:
-            row = SportsDaySetting(
-                sports_day_id=sd_id,
-                key=key
-            )
+            # This is a new setting being added, which is a change.
+            row = SportsDaySetting(sports_day_id=sd_id, key=key, value=value)
             db.session.add(row)
-
-        row.value = value
+            log_action(sd_id, get_user_info_from_request(), f"set new requirement '{key}' to '{value}'")
+        elif row.value != value:
+            # The setting exists and its value is different. This is a change.
+            old_value = row.value
+            row.value = value
+            log_action(sd_id, get_user_info_from_request(), f"updated requirement '{key}' from '{old_value}' to '{value}'")
+        # If row exists and row.value == value, do nothing.
 
     db.session.commit()
     return ok({"message": "settings updated"})
@@ -172,6 +205,11 @@ def list_events():
 @bp.post("/events")
 def create_event():
     d = request.json
+    auth_code = request.headers.get('X-Auth-Code')
+    sports_day_id = d.get("sports_day_id")
+    if not is_authorized_for_sportsday(auth_code, sports_day_id):
+        abort(403, "You are not authorized to create events for this sports day.")
+
     e = Event(
         sports_day_id=d["sports_day_id"],
         name=d["name"],
@@ -187,6 +225,7 @@ def create_event():
         max_per_house=d.get("max_per_house", 999999),
     )
     db.session.add(e)
+    log_action(d["sports_day_id"], get_user_info_from_request(), f"created new event '{d['name']}' for year group {d['year_group']}")
     db.session.commit()
     return created({"id": e.id})
 
@@ -198,7 +237,12 @@ def get_event(eid):
 
 @bp.delete("/events/<int:eid>")
 def delete_event(eid):
-    e = Event.query.filter_by(id=eid).delete()
+    e = Event.query.get_or_404(eid)
+    auth_code = request.headers.get('X-Auth-Code')
+    if not is_authorized_for_sportsday(auth_code, e.sports_day_id):
+        abort(403, "You are not authorized to delete events for this sports day.")
+    log_action(e.sports_day_id, get_user_info_from_request(), f"deleted event '{e.name}' (Y{e.year_group})")
+    db.session.delete(e)
     db.session.commit()
     return ok({"message":"event deleted"})
 
@@ -209,10 +253,14 @@ def update_event(eid):
     e = Event.query.get_or_404(eid)
     data = request.json
     old_year_group = e.year_group
+    auth_code = request.headers.get('X-Auth-Code')
+    if not is_authorized_for_sportsday(auth_code, e.sports_day_id):
+        abort(403, "You are not authorized to update events for this sports day.")
 
     for k,v in data.items():
         if k in ALLOWED_PATCH_FIELDS:
             setattr(e, k, v)
+            log_action(e.sports_day_id, get_user_info_from_request(), f"updated event '{e.name}', set {k} to '{v}'")
 
     # If the year group was changed, we need to remove any students
     # who are no longer eligible to participate.
@@ -277,6 +325,9 @@ def duplicate_event_options():
 @bp.post("/sportsdays/<int:sd_id>/events/duplicate")
 def duplicate_event(sd_id):
     data = request.get_json(force=True)
+    auth_code = request.headers.get('X-Auth-Code')
+    if not is_authorized_for_sportsday(auth_code, sd_id):
+        abort(403, "You are not authorized to duplicate events for this sports day.")
     source_id = data["source_event_id"]
 
     source = Event.query.get_or_404(source_id)
@@ -308,6 +359,9 @@ def duplicate_event(sd_id):
 @bp.post("/sportsdays/<int:sd_id>/events/upload")
 def upload_events(sd_id):
     if "file" not in request.files:
+        abort(400, "No file uploaded")
+    auth_code = request.headers.get('X-Auth-Code')
+    if not is_authorized_for_sportsday(auth_code, sd_id):
         abort(400, "No file uploaded")
 
     file = request.files["file"]
@@ -391,13 +445,17 @@ def staff_login():
     data = request.get_json()
     code = data.get("code", "").upper()
 
-    if code == "ADMIN7":
+    if code == "999999":
         return ok({"redirect": "/admin"})
 
     assignment = StaffAssignment.query.filter_by(sign_in_code=code).first()
 
     if not assignment:
         abort(401, "Invalid sign-in code.")
+
+    # If the staff member has the 'Admin' role, redirect to the admin dashboard
+    if "Admin" in assignment.roles:
+        return ok({"redirect": f"/admin/sportsday/{assignment.sports_day_id}"})
 
     return ok({
         "redirect": f"/staff/dashboard?code={code}"
@@ -412,14 +470,30 @@ def staff_dashboard_data():
     assignment = StaffAssignment.query.filter_by(sign_in_code=code).first_or_404("Invalid sign-in code.")
     sports_day = SportsDay.query.get_or_404(assignment.sports_day_id)
 
+    assignment_dict = assignment.to_dict()
+
+    # If the staff member is an Event Steward, resolve event IDs to names
+    if "Event Steward" in assignment_dict.get("roles", []) and assignment_dict.get("assigned_events"):
+        assigned_event_ids = assignment_dict["assigned_events"]
+        events = Event.query.filter(Event.id.in_(assigned_event_ids)).all()
+        event_names = [f"Y{e.year_group} {e.name}" for e in events]
+        # Add the resolved names to the payload
+        assignment_dict["assigned_event_names"] = event_names
+
+
     return ok({
-        "assignment": assignment.to_dict(),
+        "assignment": assignment_dict,
         "sports_day": {
             "id": sports_day.id,
             "year": sports_day.year,
             "status": sports_day.status
         }
     })
+
+@bp.get("/sportsdays/<int:sd_id>/history")
+def get_history(sd_id):
+    logs = AuditLog.query.filter_by(sports_day_id=sd_id).order_by(AuditLog.timestamp.desc()).all()
+    return ok([log.to_dict() for log in logs])
 
 
 @bp.get("/sportsdays/<int:sd_id>/staff")
@@ -430,6 +504,9 @@ def list_staff_for_sportsday(sd_id):
 @bp.post("/sportsdays/<int:sd_id>/staff")
 def add_staff_to_sportsday(sd_id):
     data = request.json
+    auth_code = request.headers.get('X-Auth-Code')
+    if not is_authorized_for_sportsday(auth_code, sd_id):
+        abort(403, "You are not authorized to add staff to this sports day.")
     name = data.get("name", "").strip()
     email = data.get("email", "").strip() or None
     if not name:
@@ -438,13 +515,14 @@ def add_staff_to_sportsday(sd_id):
     # Find or create the global staff member
     staff_member = None
     if email:
+        # Email is the most reliable unique identifier
         staff_member = StaffMember.query.filter(func.lower(StaffMember.email) == email.lower()).first()
         if staff_member and staff_member.name.lower() != name.lower():
             # Prevent creating a new staff member with an existing email but different name
             abort(409, f"Email {email} is already registered to {staff_member.name}.")
 
     if not staff_member:
-        staff_member = StaffMember.query.filter(func.lower(StaffMember.name) == name.lower()).first()
+        staff_member = StaffMember.query.filter(func.lower(StaffMember.name) == name.lower(), StaffMember.email == None).first()
 
     if not staff_member:
         staff_member = StaffMember(name=name, email=email)
@@ -475,6 +553,7 @@ def add_staff_to_sportsday(sd_id):
         sign_in_code=code
     )
     db.session.add(new_assignment)
+    log_action(sd_id, get_user_info_from_request(), f"added new staff member '{name}' with roles: {', '.join(data.get('roles', []))}")
     db.session.commit()
 
     return created(new_assignment.to_dict())
@@ -492,6 +571,10 @@ def update_staff_assignment(assignment_id):
 @bp.delete("/staff/assignments/<int:assignment_id>")
 def delete_staff_assignment(assignment_id):
     assignment = StaffAssignment.query.get_or_404(assignment_id)
+    auth_code = request.headers.get('X-Auth-Code')
+    if not is_authorized_for_sportsday(auth_code, assignment.sports_day_id):
+        abort(403, "You are not authorized to delete staff from this sports day.")
+    log_action(assignment.sports_day_id, get_user_info_from_request(), f"deleted staff assignment for '{assignment.staff_member.name}'")
     db.session.delete(assignment)
     db.session.commit()
     return ok({"message": "staff assignment deleted"})
@@ -500,6 +583,9 @@ def delete_staff_assignment(assignment_id):
 def upload_staff(sd_id):
     if "file" not in request.files:
         abort(400, "No file uploaded")
+    auth_code = request.headers.get('X-Auth-Code')
+    if not is_authorized_for_sportsday(auth_code, sd_id):
+        abort(403, "You are not authorized to upload staff for this sports day.")
 
     file = request.files["file"]
     try:
@@ -529,14 +615,20 @@ def upload_staff(sd_id):
         if not name:
             continue # Skip empty rows
 
-        # Find or create the global staff member
-        staff_member = StaffMember.query.filter(func.lower(StaffMember.name) == name.lower()).first()
+        # Find the global staff member, prioritizing email if it exists
+        staff_member = None
+        if email:
+            staff_member = StaffMember.query.filter(func.lower(StaffMember.email) == email.lower()).first()
+        
+        if not staff_member:
+            # Fallback to name if no email match
+            staff_member = StaffMember.query.filter(func.lower(StaffMember.name) == name.lower(), StaffMember.email == None).first()
 
         # Check if this staff member is already assigned to this sports day
         if staff_member:
             existing_assignment = StaffAssignment.query.filter_by(staff_id=staff_member.id, sports_day_id=sd_id).first()
             if existing_assignment:
-                skipped_count += 1
+                skipped_count += 1 # Already assigned, so skip.
                 continue # Skip to next row
 
         # Create the staff member if they don't exist globally
@@ -544,9 +636,6 @@ def upload_staff(sd_id):
             staff_member = StaffMember(name=name, email=email)
             db.session.add(staff_member)
             db.session.flush() # To get staff_member.id before creating assignment
-            created_count += 1
-        else:
-            skipped_count +=1
 
         # Generate a unique sign-in code for this assignment
         while True:
@@ -561,6 +650,8 @@ def upload_staff(sd_id):
             sign_in_code=code
         )
         db.session.add(new_assignment)
+        log_action(sd_id, get_user_info_from_request(), f"added new staff member '{name}' via CSV")
+        created_count += 1
 
     db.session.commit()
 
@@ -578,6 +669,11 @@ def upload_staff(sd_id):
 def update_student(student_id):
     student = Student.query.get_or_404(student_id)
     data = request.get_json(force=True)
+    auth_code = request.headers.get('X-Auth-Code')
+    sports_day_id = request.headers.get('X-Sports-Day-ID')
+
+    if not is_authorized_for_sportsday(auth_code, sports_day_id):
+        abort(403, "You are not authorized to update students for this sports day.")
 
     allowed_fields = {"name", "house", "year"}
 
@@ -593,6 +689,7 @@ def update_student(student_id):
 
         setattr(student, key, value)
 
+    log_action(request.headers.get('X-Sports-Day-ID'), get_user_info_from_request(), f"updated student '{student.name}' (Y{student.year}): set {key} to {value}")
     db.session.commit()
 
     return ok({
@@ -603,6 +700,11 @@ def update_student(student_id):
 @bp.post("/students")
 def create_student():
     data = request.get_json(force=True)
+    auth_code = request.headers.get('X-Auth-Code')
+    sports_day_id = request.headers.get('X-Sports-Day-ID')
+
+    if not is_authorized_for_sportsday(auth_code, sports_day_id):
+        abort(403, "You are not authorized to create students for this sports day.")
 
     required = {"name", "house", "year"}
     missing = required - data.keys()
@@ -653,6 +755,7 @@ def create_student():
     )
 
     db.session.add(student)
+    log_action(request.headers.get('X-Sports-Day-ID'), get_user_info_from_request(), f"created new student '{name}' (Y{year}, {house})")
     db.session.commit()
 
     return created({
@@ -668,6 +771,10 @@ def create_student():
 @bp.post("/sportsdays/<int:sd_id>/students")
 def add_student_to_sportsday(sd_id):
     data = request.get_json(force=True)
+    auth_code = request.headers.get('X-Auth-Code')
+
+    if not is_authorized_for_sportsday(auth_code, sd_id):
+        abort(403, "You are not authorized to add students to this sports day.")
 
     if "student_id" not in data:
         abort(400, "Missing required field: student_id")
@@ -717,6 +824,7 @@ def add_student_to_sportsday(sd_id):
     )
 
     db.session.add(link)
+    log_action(sd_id, get_user_info_from_request(), f"added existing student '{student.name}' to sports day")
     db.session.commit()
 
     return created({
@@ -730,6 +838,10 @@ def remove_student_from_sportsday(sd_id, student_id):
         sports_day_id=sd_id,
         student_id=student_id
     ).first_or_404()
+    auth_code = request.headers.get('X-Auth-Code')
+
+    if not is_authorized_for_sportsday(auth_code, sd_id):
+        abort(403, "You are not authorized to remove students from this sports day.")
 
     # Identify EventParticipant records to delete.
     # A bulk delete with a join can be problematic. This is a safer method.
@@ -745,6 +857,7 @@ def remove_student_from_sportsday(sd_id, student_id):
         EventParticipant.query.filter(EventParticipant.id.in_(ids_to_delete)).delete(synchronize_session=False)
 
     db.session.delete(link)
+    log_action(sd_id, get_user_info_from_request(), f"removed student '{Student.query.get(student_id).name}' from sports day")
     db.session.commit()
     return ok({"message": "student removed from sports day"})
 
@@ -752,6 +865,9 @@ def remove_student_from_sportsday(sd_id, student_id):
 def upload_students(sd_id):
     if "file" not in request.files:
         abort(400, "No file uploaded")
+    auth_code = request.headers.get('X-Auth-Code')
+    if not is_authorized_for_sportsday(auth_code, sd_id):
+        abort(403, "You are not authorized to upload students for this sports day.")
 
     file = request.files["file"]
 
@@ -778,9 +894,12 @@ def upload_students(sd_id):
 
     houses_allowed, years_allowed = get_allowed_houses_and_years(sd_id)
 
-    issues = []
-    created_students = 0
-    linked_students = 0
+    created_count = 0
+    linked_count = 0
+    updated_count = 0
+    skipped_count = 0
+    issues = [] # For rows that couldn't be processed
+    updates = [] # For rows that were successfully updated
 
     for row_num, raw in enumerate(reader, start=2):
         try:
@@ -801,26 +920,20 @@ def upload_students(sd_id):
             issues.append({
                 "row": row_num,
                 "name": name,
-                "house_invalid": house_invalid,
-                "year_invalid": year_invalid
+                "reason": f"House '{house}' or Year '{year}' is not configured for this sports day."
             })
+            skipped_count += 1
+            continue
 
         email = raw.get("email", "").strip() or None
 
         # -----------------------------
         # 1️⃣ Find or create student
         # -----------------------------
-        student = None
-
-        if email:
-            student = Student.query.filter_by(email=email).first()
-
-        if not student:
-            student = Student.query.filter_by(
-                name=name,
-                year=year,
-                house=house
-            ).first()
+        student = Student.query.filter(
+            func.lower(Student.name) == name.lower(),
+            Student.year == year
+        ).first()
 
         if not student:
             student = Student(
@@ -831,7 +944,18 @@ def upload_students(sd_id):
             )
             db.session.add(student)
             db.session.flush()   # ✅ ensure student.id exists
-            created_students += 1
+            created_count += 1
+        elif student.house != house:
+            # Student exists, but house is different. Update it.
+            old_house = student.house
+            student.house = house
+            updates.append({
+                "name": name,
+                "year": year,
+                "change": f"House updated from '{old_house}' to '{house}'."
+            })
+            updated_count += 1
+            log_action(sd_id, get_user_info_from_request(), f"updated student '{name}' via CSV: house changed to '{house}'")
 
         # -----------------------------
         # 2️⃣ Link student to sports day
@@ -848,14 +972,19 @@ def upload_students(sd_id):
                     student_id=student.id
                 )
             )
-            linked_students += 1
+            log_action(sd_id, get_user_info_from_request(), f"linked student '{student.name}' to sports day via CSV")
+            linked_count += 1
+        elif not student: # If student was not new and not updated, it was just skipped.
+            skipped_count += 1
 
     db.session.commit()
 
     return ok({
-        "created_students": created_students,
-        "linked_students": linked_students,
-        "issues": issues
+        "created": created_count,
+        "linked": linked_count,
+        "updated": updated_count,
+        "issues": issues,
+        "updates": updates
     })
 
 
@@ -955,6 +1084,8 @@ def add_participant(event_id):
     student_id = request.json["student_id"]
     student = Student.query.get_or_404(student_id)
 
+    user_info = get_user_info_from_request()
+
     ep = EventParticipant(event_id=event_id, student_id=student_id)
     db.session.add(ep)
     db.session.commit()
@@ -966,6 +1097,8 @@ def add_participant(event_id):
 
     total_participants = len(current_participants)
     house_count = sum(1 for s in participant_students if s.house == student.house)
+
+    log_action(event.sports_day_id, user_info, f"added '{student.name}' to event '{event.name}' (Y{event.year_group})")
 
     return created({
         "id": ep.id,
@@ -981,12 +1114,31 @@ def add_participant(event_id):
 
 @bp.delete("/events/<int:event_id>/participants/<int:student_id>")
 def remove_participant(event_id, student_id):
+    event = Event.query.get_or_404(event_id)
+    student = Student.query.get_or_404(student_id)
     ep = EventParticipant.query.filter_by(event_id=event_id, student_id=student_id).first()
     if not ep:
         return abort(404)
     db.session.delete(ep)
+    user_info = get_user_info_from_request()
+    log_action(event.sports_day_id, user_info, f"removed '{student.name}' from event '{event.name}' (Y{event.year_group})")
     db.session.commit()
     return ok({"message": "removed"})
+
+
+# -----------------------------
+# SECURITY HELPERS
+# -----------------------------
+
+def is_authorized_for_sportsday(auth_code, sports_day_id):
+    if not auth_code:
+        return False
+    if auth_code == '999999':
+        return True # Super admin can access anything
+
+    assignment = StaffAssignment.query.filter_by(sign_in_code=auth_code).first()
+    # A scoped admin is only authorized if their assignment's sports_day_id matches
+    return assignment and "Admin" in assignment.roles and str(assignment.sports_day_id) == str(sports_day_id)
 
 
 # -----------------------------

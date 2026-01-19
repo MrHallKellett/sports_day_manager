@@ -1,5 +1,7 @@
+import { apiClient } from './api_client.js';
+
 export async function loadConfiguredAgeCategories(sportsdayId) {
-    const res = await fetch(`/sportsdays/${sportsdayId}/settings`);
+    const res = await apiClient(`/sportsdays/${sportsdayId}/settings`);
     if (!res.ok) throw new Error("Failed to load sports day settings");
 
     const settings = await res.json();
@@ -8,19 +10,19 @@ export async function loadConfiguredAgeCategories(sportsdayId) {
 }
 
 export async function fetchSportsDay(sportsdayId) {
-    const res = await fetch(`/sportsdays/${sportsdayId}`);
+    const res = await apiClient(`/sportsdays/${sportsdayId}`);
     if (!res.ok) throw new Error("Failed to load sports day");
     return res.json();
 }
 
 export async function fetchSportsDaySettings(sportsdayId) {
-    const res = await fetch(`/sportsdays/${sportsdayId}/settings`);
+    const res = await apiClient(`/sportsdays/${sportsdayId}/settings`);
     if (!res.ok) throw new Error("Failed to load settings");
     return res.json();
 }
 
 export async function updateSportsDayRequirements(sportsdayId, payload) {
-    const res = await fetch(`/sportsdays/${sportsdayId}/settings`, {
+    const res = await apiClient(`/sportsdays/${sportsdayId}/settings`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
@@ -31,7 +33,7 @@ export async function updateSportsDayRequirements(sportsdayId, payload) {
 }
 
 export async function addStudentToSportsDay(sportsdayId, studentId) {
-    return fetch(`/sportsdays/${sportsdayId}/students`, {
+    return apiClient(`/sportsdays/${sportsdayId}/students`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ student_id: studentId })

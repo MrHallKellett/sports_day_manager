@@ -1,5 +1,6 @@
 from database import db
 from sqlalchemy import JSON
+from datetime import datetime
  
 class Event(db.Model):
     __tablename__ = "events"
@@ -135,7 +136,7 @@ class SportsDayParticipant(db.Model):
 class StaffMember(db.Model):
     __tablename__ = "staff_members"
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String, nullable=False, unique=True)
+    name = db.Column(db.String, nullable=False)
     email = db.Column(db.String, nullable=True, unique=True)
 
     assignments = db.relationship("StaffAssignment", backref="staff_member", cascade="all, delete-orphan")
@@ -168,4 +169,20 @@ class StaffAssignment(db.Model):
             "assigned_events": self.assigned_events,
             "name": self.staff_member.name,
             "email": self.staff_member.email
+        }
+
+class AuditLog(db.Model):
+    __tablename__ = "audit_logs"
+    id = db.Column(db.Integer, primary_key=True)
+    sports_day_id = db.Column(db.Integer, db.ForeignKey("sports_day.id"), nullable=False)
+    timestamp = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    user_info = db.Column(db.String, nullable=False)
+    action = db.Column(db.String, nullable=False)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "timestamp": self.timestamp.isoformat(),
+            "user_info": self.user_info,
+            "action": self.action
         }

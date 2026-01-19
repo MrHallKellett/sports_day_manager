@@ -1,101 +1,81 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Staff Dashboard</title>
-<link rel="stylesheet" href="/static/style.css"/>
-<script src="https://cdn.tailwindcss.com"></script>
-
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Staff Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css"/>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Minimal styles for highlights, can be expanded */
+        .row-highlight-error { background-color: #fee2e2; }
+        .row-highlight-warning { background-color: #ffedd5; }
+        .row-highlight-ok { background-color: #dcfce7; }
+    </style>
 </head>
-
 <body class="bg-gray-100 min-h-screen">
 
-<div class="max-w-4xl mx-auto p-4">
-
-    <div class="flex justify-between items-center">
-        <h1 id="title" class="text-2xl font-bold mb-4">Staff Dashboard</h1>
+<div class="max-w-7xl mx-auto p-4">
+    <div class="flex justify-between items-center mb-4">
         <div>
-            <span id="staffName" class="text-gray-600 mr-4"></span>
-            <button onclick="logout()" class="text-sm text-blue-600 hover:underline">Logout</button>
+            <h1 id="title" class="text-2xl font-bold">Sports Day</h1>
+            <p id="loggedInUser" class="text-sm text-gray-600">Loading...</p>
         </div>
+        <button id="logoutBtn" class="bg-red-600 text-white px-3 py-2 rounded hover:bg-red-700">
+            Logout
+        </button>
     </div>
 
     <!-- TABS -->
-    <div id="tabs-container" class="mb-4 border-b border-gray-200">
-        <nav class="-mb-px flex space-x-6" aria-label="Tabs">
-            <!-- Tabs will be inserted here by JS -->
+    <div class="mb-4 border-b border-gray-200">
+        <nav id="tabs-nav" class="-mb-px flex space-x-6" aria-label="Tabs">
+            <!-- Tabs will be dynamically inserted here based on role -->
+            <button data-tab="students" class="tab-button hidden whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm">Students</button>
+            <button data-tab="events" class="tab-button hidden whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm">Events</button>
         </nav>
     </div>
 
     <!-- TAB PANES -->
     <div id="tab-panes-container">
-        <!-- Panes will be inserted here by JS -->
+        <!-- STUDENTS PANE -->
+        <div id="students-pane" data-pane="students" class="tab-pane hidden">
+            <div class="bg-white shadow p-4 rounded">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="font-semibold text-lg">Students</h2>
+                    <div>
+                        <button id="showHighlightsBtn" type="button" class="ml-4 bg-gray-200 text-gray-800 px-3 py-2 rounded hover:bg-gray-300">
+                            Show Highlights
+                        </button>
+                    </div>
+                </div>
+                <div class="overflow-auto h-[70vh] border rounded">
+                    <table class="min-w-full text-sm">
+                        <thead>
+                            <tr id="student-header-row" class="text-left border-b"></tr>
+                            <tr id="student-filter-row" class="text-left border-b"></tr>
+                        </thead>
+                        <tbody id="studentsTable">
+                            <tr><td colspan="4" class="py-4 text-center text-gray-500">Loading students...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- EVENTS PANE (for Event Stewards) -->
+        <div id="events-pane" data-pane="events" class="tab-pane hidden">
+            <div class="bg-white shadow p-4 rounded">
+                <h2 class="font-semibold text-lg">My Assigned Events</h2>
+                <div id="assigned-events-list">
+                    <!-- Assigned events will be listed here -->
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
 <div id="toast-container"></div>
-
-<script type="module">
-    import { showToast } from '/static/scripts/ui/toast.js';
-
-    const urlParams = new URLSearchParams(window.location.search);
-    const code = urlParams.get('code');
-
-    if (!code) {
-        window.location.href = '/staff/login';
-    }
-
-    let assignment = null;
-    let sportsDay = null;
-
-    function logout() {
-        // For staff, logging out just means going back to the login page.
-        window.location.href = '/staff/login';
-    }
-    window.logout = logout;
-
-    async function loadDashboard() {
-        const res = await fetch(`/staff/dashboard-data?code=${code}`);
-        if (!res.ok) {
-            showToast('Could not load dashboard. Invalid session.', { type: 'error' });
-            setTimeout(() => window.location.href = '/staff/login', 2000);
-            return;
-        }
-        const data = await res.json();
-        assignment = data.assignment;
-        sportsDay = data.sports_day;
-
-        document.getElementById('title').textContent = `Sports Day ${sportsDay.year}`;
-        document.getElementById('staffName').textContent = `Logged in as: ${assignment.staff_name}`;
-
-        renderTabsAndPanes();
-    }
-
-    function renderTabsAndPanes() {
-        const tabsContainer = document.getElementById('tabs-container').querySelector('nav');
-        const panesContainer = document.getElementById('tab-panes-container');
-        tabsContainer.innerHTML = '';
-        panesContainer.innerHTML = '';
-
-        if (assignment.roles.includes('Event Steward')) {
-            tabsContainer.innerHTML += `<button data-tab="students" class="tab-button whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm border-blue-600 text-blue-600">Students</button>`;
-            tabsContainer.innerHTML += `<button data-tab="results" class="tab-button whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300">Results</button>`;
-
-            panesContainer.innerHTML += `<div id="students-pane" data-pane="students" class="tab-pane">STUDENTS PANE (TODO)</div>`;
-            panesContainer.innerHTML += `<div id="results-pane" data-pane="results" class="tab-pane" style="display: none;"></div>`;
-
-            const resultsPane = document.getElementById('results-pane');
-            if (sportsDay.status === 'registering') {
-                resultsPane.innerHTML = `<div class="bg-white shadow p-4 rounded"><p>Sports Day ${sportsDay.year} is still in the "Registering Participants" stage. Results cannot be recorded yet.</p></div>`;
-            } else {
-                resultsPane.innerHTML = `RESULTS PANE (TODO)`;
-            }
-        }
-    }
-
-    loadDashboard();
-</script>
+<script type="module" src="/static/scripts/pages/staff_dashboard.js"></script>
 
 </body>
 </html>

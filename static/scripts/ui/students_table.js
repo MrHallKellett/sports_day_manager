@@ -15,7 +15,9 @@ export function renderStudentsTable({
     participation,
     issues = [],
     settings,
-    events_by_id = {} // Default to empty object
+    events_by_id = {}, // Default to empty object
+    event_participation_counts = {},
+    staffAssignment = null // New parameter
     }) {
     const issueMap = indexIssues(issues);
     const eventNames = Object.keys(events_by_name);
@@ -25,8 +27,12 @@ export function renderStudentsTable({
         <th class="sticky top-0 bg-gray-50 p-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" data-column-index="0">Name</th>
         <th class="sticky top-0 bg-gray-50 p-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" data-column-index="1">House</th>
         <th class="sticky top-0 bg-gray-50 p-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" data-column-index="2">Year</th>
-        ${eventNames.map((n, i) => `
-            <th class="sticky top-0 bg-gray-50 p-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" data-column-index="${i + 3}">${n}</th>
+        ${eventNames.map((name, i) => `
+            <th class="sticky top-0 bg-gray-50 p-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer event-header-cell" data-column-index="${i + 3}">
+                <div>
+                    <span>${name}</span>
+                </div>
+            </th>
         `).join("")}
         <th class="sticky top-0 bg-gray-50 p-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
     `;
@@ -37,7 +43,7 @@ export function renderStudentsTable({
         <th class="sticky top-10 bg-gray-100 p-1"><input type="text" data-filter="house" placeholder="Filter house..." class="w-full text-xs p-1"></th>
         <th class="sticky top-10 bg-gray-100 p-1"><input type="text" data-filter="year" placeholder="Filter year..." class="w-full text-xs p-1"></th>
         ${eventNames.map((name, i) => `
-            <th class="sticky top-10 bg-gray-100 p-1">
+            <th class="sticky top-10 bg-gray-100 p-1" style="width: 40px; min-width: 40px;">
                 <select data-filter="event" data-event-index="${i}" class="w-full text-xs p-1">
                     <option value="all">All</option><option value="yes">Yes</option><option value="no">No</option>
                 </select>
@@ -49,19 +55,23 @@ export function renderStudentsTable({
     tbody.innerHTML = "";
 
     /* ✅ Existing students */
+    // Pass staffAssignment to renderStudentRow
     for (const s of students) {
+        // Pass the full 'students' array as 'allStudents' for duplicate checks
         tbody.appendChild(
-            renderStudentRow(s, students, eventNames, events_by_name, participation, issueMap, settings, event_participation_counts, events_by_id)
+            renderStudentRow(s, students, eventNames, events_by_name, participation, issueMap, settings, event_participation_counts, events_by_id, students, staffAssignment)
         );
     }
 
     filterRow.addEventListener("input", applyFilters);
     headerRow.addEventListener("click", handleSort);
-    document.getElementById("showHighlightsBtn").addEventListener("click", toggleHighlights);
-
-    // If highlights are currently active, re-apply them to the new rows
-    if (document.body.classList.contains('show-row-highlights')) {
-        applyHighlights();
+    const showHighlightsBtn = document.getElementById("showHighlightsBtn");
+    if (showHighlightsBtn) { // Only attach if button exists (i.e., on admin page)
+        showHighlightsBtn.addEventListener("click", toggleHighlights);
+        // If highlights are currently active, re-apply them to the new rows
+        if (document.body.classList.contains('show-row-highlights')) {
+            applyHighlights();
+        }
     }
 }
 
@@ -83,18 +93,22 @@ function renderStudentRow(
     issueMap,
     settings,
     event_participation_counts,
-    events_by_id
+    events_by_id,
+    allStudents,
+    staffAssignment = null // New parameter
 ) {
     const issue = issueMap[student.name];
     const tr = document.createElement("tr");
     tr.dataset.studentId = student.id;
-    const status = calculateStudentStatus(student, participation[student.id] || [], settings, events_by_name, event_participation_counts, events_by_id);
+    const status = calculateStudentStatus(student, participation[student.id] || [], settings, event_participation_counts, events_by_id, allStudents);
     tr.dataset.highlightStatus = status;
 
+    // Determine if editing is allowed (only for admin, not for staff roles)
+    const canEditStudentInfo = !staffAssignment; // If staffAssignment is null, it's an admin view
     // Create Name, House, and Year cells as non-editable text initially
-    const nameTd = createStudentInfoCell(student.name, () => makeCellEditable(nameTd, student, 'name', settings, events_by_name, participation, event_participation_counts, events_by_id));
-    const houseTd = createStudentInfoCell(student.house, () => makeCellEditable(houseTd, student, 'house', settings, events_by_name, participation, event_participation_counts, events_by_id));
-    const yearTd = createStudentInfoCell(student.year, () => makeCellEditable(yearTd, student, 'year', settings, events_by_name, participation, event_participation_counts, events_by_id));
+    const nameTd = createStudentInfoCell(student.name, canEditStudentInfo ? () => makeCellEditable(nameTd, student, 'name', settings, events_by_name, participation, event_participation_counts, events_by_id, allStudents) : null, allStudents);
+    const houseTd = createStudentInfoCell(student.house, canEditStudentInfo ? () => makeCellEditable(houseTd, student, 'house', settings, events_by_name, participation, event_participation_counts, events_by_id, allStudents) : null, allStudents);
+    const yearTd = createStudentInfoCell(student.year, canEditStudentInfo ? () => makeCellEditable(yearTd, student, 'year', settings, events_by_name, participation, event_participation_counts, events_by_id, allStudents) : null, allStudents);
 
     if (issue?.house_invalid) houseTd.classList.add("cell-warning");
     if (issue?.year_invalid) yearTd.classList.add("cell-warning");
@@ -109,7 +123,7 @@ function renderStudentRow(
         const matchedEvent = findMatchingEvent(eventsForName, student.year);
 
         const td = document.createElement("td");
-        td.className = "text-center";
+        td.className = "text-center p-0";
         if (!matchedEvent) {
             td.textContent = "—";
         } else {
@@ -117,6 +131,21 @@ function renderStudentRow(
             cb.type = "checkbox";
             cb.checked =
                 participation[student.id]?.includes(matchedEvent.id);
+
+            // Determine if checkbox is editable
+            let canToggleParticipation = true;
+            if (staffAssignment) {
+                const isEventSteward = staffAssignment.roles.includes('Event Steward');
+
+                if (isEventSteward) {
+                    // Event Stewards can only toggle their assigned events
+                    canToggleParticipation = staffAssignment.assigned_events?.includes(matchedEvent.id);
+                }
+                // Form Tutors can toggle any event for their assigned students (who are already filtered)
+            }
+            if (!canToggleParticipation) {
+                cb.disabled = true;
+            }
 
             cb.addEventListener("change", async () => {
                 const success = await window.onToggleParticipation(
@@ -151,10 +180,12 @@ function renderStudentRow(
                             const studentId = parseInt(row.dataset.studentId);
                             const studentData = students.find(s => s.id === studentId); // students is from closure
                             if (studentData) {
-                                updateRowHighlight(row, studentData, participation, settings, events_by_name, event_participation_counts, events_by_id);
+                                updateRowHighlight(row, studentData, participation, settings, event_participation_counts, events_by_id, students);
                             }
                         });
                     }
+                } else {
+                    cb.checked = !cb.checked; // Revert on failure
                 }
             });
 
@@ -166,14 +197,18 @@ function renderStudentRow(
 
     // Actions Cell
     const actionsTd = document.createElement("td");
-    actionsTd.className = "px-2 py-1";
-    actionsTd.innerHTML = `
-        <button data-student-id="${student.id}"
-                data-student-name="${student.name}"
-                class="remove-student text-red-600 hover:underline text-xs">
-            Remove
-        </button>
-    `;
+    actionsTd.className = "px-2 py-1 text-center";
+    if (canEditStudentInfo) { // Only show remove button for admin
+        actionsTd.innerHTML = `
+            <button data-student-id="${student.id}"
+                    data-student-name="${student.name}"
+                    class="remove-student text-red-600 hover:underline text-xs">
+                Remove
+            </button>
+        `;
+    } else {
+        actionsTd.textContent = '—'; // Or leave empty
+    }
     tr.appendChild(actionsTd);
 
     return tr;
@@ -182,12 +217,14 @@ function renderStudentRow(
 function createStudentInfoCell(text, onDoubleClick) {
     const td = document.createElement("td");
     td.className = "px-2 py-1";
-    td.textContent = text;
-    td.addEventListener('dblclick', onDoubleClick);
+    td.textContent = text; // Always display text
+    if (onDoubleClick) { // Only attach if a handler is provided
+        td.addEventListener('dblclick', onDoubleClick);
+    }
     return td;
 }
 
-function makeCellEditable(td, student, field, settings, events_by_name, participation, event_participation_counts, events_by_id) {
+function makeCellEditable(td, student, field, settings, events_by_name, participation, event_participation_counts, events_by_id, allStudents) {
     const originalValue = td.textContent;
     const tr = td.closest('tr');
     td.innerHTML = ''; // Clear the cell
@@ -240,12 +277,12 @@ function makeCellEditable(td, student, field, settings, events_by_name, particip
 
             if (res.ok) {
                 // Recalculate and apply the new status
-                updateRowHighlight(tr, student, participation, settings, events_by_name, event_participation_counts, events_by_id);
+                updateRowHighlight(tr, student, participation, settings, event_participation_counts, events_by_id, allStudents);
             } else {
                 // Revert on failure
                 student[field] = oldStudentData[field]; // Revert student object
                 td.textContent = originalValue;
-                updateRowHighlight(tr, student, participation, settings, events_by_name, event_participation_counts, events_by_id);
+                updateRowHighlight(tr, student, participation, settings, event_participation_counts, events_by_id, allStudents);
             }
         } else {
             revert();
@@ -267,8 +304,8 @@ function makeCellEditable(td, student, field, settings, events_by_name, particip
     });
 }
 
-function updateRowHighlight(tr, student, participation, settings, eventsByName, event_participation_counts, events_by_id) {
-    const newStatus = calculateStudentStatus(student, participation[student.id] || [], settings, eventsByName, event_participation_counts, events_by_id);
+function updateRowHighlight(tr, student, participation, settings, event_participation_counts, events_by_id, allStudents) {
+    const newStatus = calculateStudentStatus(student, participation[student.id] || [], settings, event_participation_counts, events_by_id, allStudents);
     tr.dataset.highlightStatus = newStatus;
 
     // If highlights are currently active, update the class
@@ -280,7 +317,7 @@ function updateRowHighlight(tr, student, participation, settings, eventsByName, 
     }
 }
 
-function calculateStudentStatus(student, participationIds, settings, eventsByName, event_participation_counts, events_by_id) {
+function calculateStudentStatus(student, participationIds, settings, event_participation_counts, events_by_id, allStudents) {
     const allowedHouses = new Set(settings.houses || []);
     const allowedYears = new Set();
     (settings.year_groups || []).forEach(yg => {
@@ -289,12 +326,38 @@ function calculateStudentStatus(student, participationIds, settings, eventsByNam
         else { allowedYears.add(String(yg)); }
     });
 
-    // --- Red/Error Checks ---
-    if (!student.name || !student.house || !student.year) return 'error';
-    if (!allowedHouses.has(student.house)) return 'error';
-    if (!allowedYears.has(String(student.year))) return 'error';
+    // --- Count event types ---
+    let trackCount = 0;
+    let fieldCount = 0;
+    participationIds.forEach(eventId => {
+        const event = events_by_id[eventId];
+        if (event && event.category) {
+            if (event.category === 'track') trackCount++;
+            if (event.category === 'field') fieldCount++;
+        }
+    });
 
-    // --- Red/Error Check for House Quota ---
+    // --- Red/Error Checks ---
+    // 1. Invalid house or year
+    if (!allowedHouses.has(student.house) || !allowedYears.has(String(student.year))) {
+        return 'error';
+    }
+    // 2. Exceeded overall event maximum
+    if (settings.overall_max > 0 && participationIds.length > settings.overall_max) {
+        return 'error';
+    }
+    // 3. Duplicate student (same name and year)
+    if (allStudents) { // Only check if allStudents is provided
+        const duplicate = allStudents.find(s =>
+            s.id !== student.id &&
+            s.name.toLowerCase() === student.name.toLowerCase() &&
+            s.year === student.year
+        );
+        if (duplicate) {
+            return 'error';
+        }
+    }
+    // 4. Exceeded house quota in any event
     for (const eventId of participationIds) {
         const event = events_by_id[eventId];
         if (event && event.max_per_house > 0) {
@@ -305,21 +368,9 @@ function calculateStudentStatus(student, participationIds, settings, eventsByNam
         }
     }
 
-    // --- Orange/Warning Checks ---
-    let trackCount = 0;
-    let fieldCount = 0;
-
-    participationIds.forEach(eventId => {
-        const event = events_by_id[eventId];
-        if (event && event.category) {
-            if (event.category === 'track') trackCount++;
-            if (event.category === 'field') fieldCount++;
-        }
-    });
-
+    // --- Yellow/Warning Checks ---
     if (settings.track_min > 0 && trackCount < settings.track_min) return 'warning';
     if (settings.field_min > 0 && fieldCount < settings.field_min) return 'warning';
-    if (settings.overall_max > 0 && participationIds.length > settings.overall_max) return 'warning';
 
     // --- Green/OK ---
     return 'ok';

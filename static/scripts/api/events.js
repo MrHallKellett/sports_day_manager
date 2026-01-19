@@ -1,25 +1,26 @@
 // static/scripts/api/events.js
+import { apiClient } from './api_client.js';
 
 export async function fetchEvent(eventId) {
-    const res = await fetch(`/events/${eventId}`);
+    const res = await apiClient(`/events/${eventId}`);
     if (!res.ok) throw new Error('Failed to fetch event');
     return res.json();
 }
 
 export async function fetchEvents(sportsdayId) {
-    const res = await fetch(`/sportsdays/${sportsdayId}/events`);
+    const res = await apiClient(`/sportsdays/${sportsdayId}/events`);
     if (!res.ok) throw new Error('Failed to fetch events');
     return res.json();
 }
 
 export async function deleteEventById(eventId) {
-    const res = await fetch(`/events/${eventId}`, { method: 'DELETE' });
+    const res = await apiClient(`/events/${eventId}`, { method: 'DELETE' });
     if (!res.ok) throw new Error('Failed to delete event');
     return res.json();
 }
 
-export async function updateEvent(eventId, payload) {
-    const res = await fetch(`/events/${eventId}`, {
+export async function updateEvent(eventId, payload, authCode = null) {
+    const res = await apiClient(`/events/${eventId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -32,13 +33,13 @@ export async function updateEvent(eventId, payload) {
 }
 
 export async function fetchDuplicateEventOptions() {
-    const res = await fetch('/events/duplicate-options');
+    const res = await apiClient('/events/duplicate-options');
     if (!res.ok) throw new Error('Failed to fetch duplicate event options');
     return res.json();
 }
 
 export async function duplicateEvent(sportsdayId, sourceEventId) {
-    const res = await fetch(`/sportsdays/${sportsdayId}/events/duplicate`, {
+    const res = await apiClient(`/sportsdays/${sportsdayId}/events/duplicate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ source_event_id: sourceEventId })
@@ -54,7 +55,7 @@ export async function uploadEventsCsv(sportsdayId, file) {
     const formData = new FormData();
     formData.append('file', file);
 
-    const res = await fetch(`/sportsdays/${sportsdayId}/events/upload`, {
+    const res = await apiClient(`/sportsdays/${sportsdayId}/events/upload`, {
         method: 'POST',
         body: formData
     });
@@ -65,15 +66,19 @@ export async function uploadEventsCsv(sportsdayId, file) {
     return res.json();
 }
 
-export async function toggleParticipation(eventId, studentId, on) {
+export async function toggleParticipation(eventId, studentId, on, authCode = null) {
     const url = `/events/${eventId}/participants`;
+    const options = { headers: { 'Content-Type': 'application/json' } };
+    if (authCode) options.headers['X-Auth-Code'] = authCode;
+
     if (on) {
-        return fetch(url, {
+        return apiClient(url, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ student_id: studentId })
+            ...options,
+            body: JSON.stringify({ student_id: studentId }),
         });
     } else {
-        return fetch(`${url}/${studentId}`, { method: 'DELETE' });
+        options.method = 'DELETE';
+        return apiClient(`${url}/${studentId}`, options);
     }
 }

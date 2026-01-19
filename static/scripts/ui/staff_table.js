@@ -12,11 +12,31 @@ export function setupStaffForm(settings, events, onAddStaff) {
     
     const roleFormTutor = newForm.querySelector('#roleFormTutor');
     const roleEventSteward = newForm.querySelector('#roleEventSteward');
+    const roleAdmin = newForm.querySelector('#roleAdmin');
     const tutorAssignments = newForm.querySelector('#formTutorAssignments');
     const stewardAssignments = newForm.querySelector('#eventStewardAssignments');
     
-    roleFormTutor.addEventListener('change', () => tutorAssignments.classList.toggle('hidden', !roleFormTutor.checked));
-    roleEventSteward.addEventListener('change', () => stewardAssignments.classList.toggle('hidden', !roleEventSteward.checked));
+    const updateAssignmentVisibility = () => {
+        tutorAssignments.classList.toggle('hidden', !roleFormTutor.checked);
+        stewardAssignments.classList.toggle('hidden', !roleEventSteward.checked);
+    };
+
+    roleFormTutor.addEventListener('change', updateAssignmentVisibility);
+    roleEventSteward.addEventListener('change', updateAssignmentVisibility);
+
+    roleAdmin.addEventListener('change', () => {
+        if (roleAdmin.checked) {
+            roleFormTutor.checked = false;
+            roleFormTutor.disabled = true;
+            roleEventSteward.checked = false;
+            roleEventSteward.disabled = true;
+        } else {
+            roleFormTutor.disabled = false;
+            roleEventSteward.disabled = false;
+        }
+        updateAssignmentVisibility(); // Update visibility based on new states
+    });
+    updateAssignmentVisibility(); // Set initial visibility
     
     populateAssignmentSelects(newForm, settings, events);
 

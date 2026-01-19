@@ -29,21 +29,7 @@
             <div id="error-message" class="mt-4 text-red-500 text-xs italic hidden"></div>
         </form>
     </div>
-
-    <script>
-        document.getElementById('loginForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const code = document.getElementById('loginCode').value.trim().toUpperCase();
-            const errorEl = document.getElementById('error-message');
-            errorEl.classList.add('hidden');
-
-            const res = await fetch('/staff/login', {
-                method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ code })
-            });
-            const data = await res.json();
-            if (res.ok) window.location.href = data.redirect;
-            else { errorEl.textContent = data.message; errorEl.classList.remove('hidden'); }
-        });
-    </script>
+    
+    <script type="module" src="/static/scripts/pages/staff_login.js"></script>
 </body>
 </html>

@@ -1,7 +1,7 @@
 import { populateYearGroupSelect, validateEventForm } from "../ui/form_validation.js";
 import { loadConfiguredAgeCategories } from "../api/sportsdays.js";
 import { displayExistingEventData, initCreate } from "../ui/event_form.js";
-import { fetchEvent } from "../api/events.js";
+import { fetchEvent, updateEvent } from "../api/events.js";
 import { getValue } from "./helpers.js"
 
 let mode = "create";
@@ -56,20 +56,20 @@ if (!form) {
             const payload = buildEventPayload();
             if (!validateEventForm(payload)) return;
             const url = mode === "create"
-                ? "/events"
-                : `/events/${eventId}`;
+                ? `/sportsdays/${sportsDayId}/events`
+                : `/events/${eventId}`; // The update endpoint is not nested
 
             const method = mode === "create" ? "POST" : "PATCH";
 
             if (mode === "create") {
                 payload.sports_day_id = parseInt(sportsDayId);
             }
-
-            const res = await fetch(url, {
-                method,
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload)
-            });
+            
+            const res = (mode === 'create')
+                ? await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+                : await updateEvent(eventId, payload);
+            
+            
 
             if (res.ok) {
                 const data = await res.json();
