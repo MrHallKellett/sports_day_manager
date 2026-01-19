@@ -3,8 +3,8 @@
 import { fetchSportsDay, fetchSportsDaySettings,
          updateSportsDayRequirements, loadConfiguredAgeCategories, addStudentToSportsDay } from "../api/sportsdays.js"
 import { fetchStudentsForSportsDay, createStudent, updateStudent, removeStudentFromSportsDay } from "../api/students.js"
-import { fetchStaff, createStaff as createNewStaff, deleteStaff, uploadStaffCsv } from "../api/staff_table.js"
-import { fetchEvents, toggleParticipation, deleteEventById, uploadEventsCsv } from "../api/events.js"
+import { fetchStaff, createStaff as createNewStaff, deleteStaff, uploadStaffCsv } from "../api/staff_table.js";
+import { fetchEvents, toggleParticipation, deleteEventById, uploadEventsCsv, fetchDuplicateEventOptions, duplicateEvent } from "../api/events.js";
 import { loadParticipationSettings, applyYearGroupSettings } from "../ui/sportsday_settings.js"
 
 import { populateHouseInputs, getSelectedYearGroups, addHouse, getHouses } from "../ui/requirements_form.js"
@@ -209,6 +209,61 @@ async function onUploadStaff(file) {
     } finally {
         // Reset file input
         document.getElementById('staffCsvFile').value = '';
+    }
+}
+
+async function onToggleDuplicateDropdown() {
+    const dropdown = document.getElementById('duplicateDropdown');
+    const optionsContainer = document.getElementById('duplicateOptionsContainer');
+    const isHidden = dropdown.classList.toggle('hidden');
+    // Add a listener to close the dropdown if the user clicks elsewhere
+    if (!isHidden) document.addEventListener('click', closeDuplicateDropdownOnClickOutside, { once: true });
+
+    if (!isHidden) {
+        try {
+            optionsContainer.innerHTML = '<div class="px-4 py-2 text-sm text-gray-500">Loading...</div>';
+            const options = await fetchDuplicateEventOptions();
+
+            if (options.length === 0) {
+                optionsContainer.innerHTML = '<div class="px-4 py-2 text-sm text-gray-500">No events found to duplicate</div>';
+                return;
+            }
+
+            optionsContainer.innerHTML = ''; // Clear loading message
+            options.forEach(opt => {
+                const optionText = `${opt.sports_day_name} - Y${opt.event_year_group} - ${opt.event_name}`;
+                const item = document.createElement('a');
+                item.href = '#';
+                item.className = 'block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 truncate';
+                item.textContent = optionText;
+                item.dataset.eventId = opt.event_id;
+                item.setAttribute('role', 'menuitem');
+                item.onclick = (e) => {
+                    e.preventDefault();
+                    onConfirmDuplicate(opt.event_id);
+                    dropdown.classList.add('hidden'); // Close dropdown on selection
+                };
+                optionsContainer.appendChild(item);
+            });
+        } catch (error) {
+            showError(`Failed to load events for duplication: ${error.message}`);
+            optionsContainer.innerHTML = '<div class="px-4 py-2 text-sm text-red-500">Error loading events</div>';
+        }
+    }
+}
+
+async function onConfirmDuplicate(sourceEventId) {
+    if (!sourceEventId) return;
+    await duplicateEvent(sportsdayId, sourceEventId);
+    showToast('Event duplicated successfully. A "copy" has been added to the name.', { type: 'success' });
+    await loadEvents(sportsdayId);
+}
+
+function closeDuplicateDropdownOnClickOutside(event) {
+    const dropdown = document.getElementById('duplicateDropdown');
+    const button = document.getElementById('duplicateEventBtn');
+    if (dropdown && !dropdown.contains(event.target) && !button.contains(event.target)) {
+        dropdown.classList.add('hidden');
     }
 }
 
@@ -450,8 +505,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (downloadEventsTemplateBtn) downloadEventsTemplateBtn.addEventListener("click", onDownloadEventsTemplate);
     const eventsCsvInput = document.getElementById('eventsCsvFile');
     if (eventsCsvInput) eventsCsvInput.addEventListener('change', (e) => onUploadEvents(e.target.files[0]));
+    const duplicateEventBtn = document.getElementById('duplicateEventBtn');
+    if (duplicateEventBtn) duplicateEventBtn.addEventListener('click', onToggleDuplicateDropdown);
     const staffCsvInput = document.getElementById('staffCsvFile');
     if (staffCsvInput) staffCsvInput.addEventListener('change', (e) => onUploadStaff(e.target.files[0]));
+
+
+
 
     // --- Restore interactive year group selection ---
     const combineKS4 = document.getElementById("combineKS4");

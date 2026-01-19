@@ -15,7 +15,6 @@ export function renderStudentsTable({
     participation,
     issues = [],
     settings,
-    event_participation_counts = {}, // Default to empty object
     events_by_id = {} // Default to empty object
     }) {
     const issueMap = indexIssues(issues);

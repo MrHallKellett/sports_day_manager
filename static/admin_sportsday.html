@@ -128,22 +128,16 @@
         <div class="flex justify-between items-center mb-3">
             <h2 class="font-semibold">Events</h2>
             <div class="event-actions">
-                
-                <a id="createEventBtn">
-                    <button class="bg-green-600 text-white px-3 py-2 rounded hover:bg-green-700">
-                        Create New Event
-                    </button>
+                <a id="createEventBtn" class="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700">
+                    Create New Event
                 </a>
-              
-                <button id="duplicateEventBtn"
-                class="bg-green-600 text-white px-3 py-2 rounded hover:bg-green-700">
-                  Duplicate Existing Event
-                </button>
-              
-                <div id="duplicatePanel" class="duplicate-panel hidden">
-                  <select id="duplicateSelect">
-                    <option value="">-- Select an event to duplicate --</option>
-                  </select>
+                <div class="relative inline-block text-left">
+                    <button id="duplicateEventBtn" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-300">
+                        Duplicate Existing Event
+                    </button>
+                    <div id="duplicateDropdown" class="hidden origin-top-left absolute left-0 mt-2 w-96 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none z-10">
+                        <div id="duplicateOptionsContainer" class="py-1 max-h-60 overflow-y-auto" role="menu" aria-orientation="vertical" aria-labelledby="duplicateEventBtn"></div>
+                    </div>
                 </div>
               </div>
   

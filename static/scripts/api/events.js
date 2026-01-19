@@ -1,5 +1,11 @@
 // static/scripts/api/events.js
 
+export async function fetchEvent(eventId) {
+    const res = await fetch(`/events/${eventId}`);
+    if (!res.ok) throw new Error('Failed to fetch event');
+    return res.json();
+}
+
 export async function fetchEvents(sportsdayId) {
     const res = await fetch(`/sportsdays/${sportsdayId}/events`);
     if (!res.ok) throw new Error('Failed to fetch events');
@@ -21,6 +27,25 @@ export async function updateEvent(eventId, payload) {
     if (!res.ok) {
         const error = await res.text();
         throw new Error(error || 'Failed to update event');
+    }
+    return res.json();
+}
+
+export async function fetchDuplicateEventOptions() {
+    const res = await fetch('/events/duplicate-options');
+    if (!res.ok) throw new Error('Failed to fetch duplicate event options');
+    return res.json();
+}
+
+export async function duplicateEvent(sportsdayId, sourceEventId) {
+    const res = await fetch(`/sportsdays/${sportsdayId}/events/duplicate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source_event_id: sourceEventId })
+    });
+    if (!res.ok) {
+        const error = await res.text();
+        throw new Error(error || 'Failed to duplicate event');
     }
     return res.json();
 }

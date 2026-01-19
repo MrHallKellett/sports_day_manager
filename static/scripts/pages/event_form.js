@@ -89,6 +89,8 @@ if (!form) {
             eventId = parseInt(window.location.pathname.split("/").slice(-2)[0]);
             await loadEventForEdit(eventId);
         } else {
+            const sportsDayId = new URLSearchParams(window.location.search).get("sportsday");
+            await initYearGroups(sportsDayId);
             initCreate();
         }
     })();
