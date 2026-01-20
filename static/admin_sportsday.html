@@ -32,6 +32,13 @@
 
 <body class="bg-gray-100 min-h-screen">
 
+    <!-- Add this right after your opening <body> tag -->
+<div id="loading-overlay" class="fixed inset-0 z-50 flex-col items-center justify-center bg-white bg-opacity-90" style="display: none;">
+    <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-600"></div>
+    <p class="mt-4 text-lg text-gray-700">Loading Dashboard...</p>
+</div>
+
+
 <div class="max-w-7xl mx-auto p-4">
 
     <div class="flex justify-between items-center mb-4">
@@ -238,6 +245,13 @@
                     <label for="newStudentYear" class="block text-sm font-medium text-gray-700">Year</label>
                     <select id="newStudentYear" class="mt-1 border rounded px-2 py-1 w-full"><option value="">Select Year...</option></select>
                 </div>
+                <div>
+                    <label for="newStudentSex" class="block text-sm font-medium text-gray-700">Sex</label>
+                    <select id="newStudentSex" class="mt-1 border rounded px-2 py-1 w-full">
+                        <option value="">Select Sex...</option>
+                        <option value="male">Male</option><option value="female">Female</option>
+                    </select>
+                </div>
             </div>
             <button type="submit" class="mt-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Add Student</button>
         </form>
@@ -332,7 +346,7 @@
                     <tr id="staff-filter-row" class="text-left border-b"></tr>
                 </thead>
                 <tbody id="staffTableBody">
-                    <tr><td colspan="5" class="py-4 text-center text-gray-500">Loading staff...</td></tr>
+                    <tr><td colspan="5" class="py-4 text-center text-gray-500">x staff...</td></tr>
                 </tbody>
             </table>
         </div>

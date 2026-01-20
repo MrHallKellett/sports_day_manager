@@ -1,6 +1,6 @@
 // static/scripts/ui/students_table.js
 
-import { indexIssues } from "../domain/issues.js"
+import { indexIssues } from "../domain/issues.js";
 import { findMatchingEvent } from "../domain/events.js"
 
 // Module-level state to track sorting
@@ -19,16 +19,17 @@ export function renderStudentsTable({
     event_participation_counts = {},
     staffAssignment = null // New parameter
     }) {
-    const issueMap = indexIssues(issues);
+    const issueMap = indexIssues(issues); // Assuming issue.name is student.name
     const eventNames = Object.keys(events_by_name);
 
     const headerRow = document.getElementById("student-header-row");
     headerRow.innerHTML = `
         <th class="sticky top-0 bg-gray-50 p-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" data-column-index="0">Name</th>
         <th class="sticky top-0 bg-gray-50 p-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" data-column-index="1">House</th>
-        <th class="sticky top-0 bg-gray-50 p-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" data-column-index="2">Year</th>
+        <th class="sticky top-0 bg-gray-50 p-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" data-column-index="2">Sex</th>
+        <th class="sticky top-0 bg-gray-50 p-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer" data-column-index="3">Year</th>
         ${eventNames.map((name, i) => `
-            <th class="sticky top-0 bg-gray-50 p-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer event-header-cell" data-column-index="${i + 3}">
+            <th class="sticky top-0 bg-gray-50 p-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer event-header-cell" data-column-index="${i + 4}">
                 <div>
                     <span>${name}</span>
                 </div>
@@ -41,6 +42,7 @@ export function renderStudentsTable({
     filterRow.innerHTML = `
         <th class="sticky top-0 bg-gray-100 p-1"><input type="text" data-filter="name" placeholder="Filter name..." class="w-full text-xs p-1"></th>
         <th class="sticky top-0 bg-gray-100 p-1"><input type="text" data-filter="house" placeholder="Filter house..." class="w-full text-xs p-1"></th>
+        <th class="sticky top-0 bg-gray-100 p-1"><input type="text" data-filter="sex" placeholder="Filter sex..." class="w-full text-xs p-1"></th>
         <th class="sticky top-0 bg-gray-100 p-1"><input type="text" data-filter="year" placeholder="Filter year..." class="w-full text-xs p-1"></th>
         ${eventNames.map((name, i) => `
             <th class="sticky top-0 bg-gray-100 p-1" style="width: 40px; min-width: 40px;">
@@ -109,6 +111,7 @@ function renderStudentRow(
     // Create Name, House, and Year cells as non-editable text initially
     const nameTd = createStudentInfoCell(student.name, canEditStudentInfo ? () => makeCellEditable(nameTd, student, 'name', settings, events_by_name, participation, event_participation_counts, events_by_id, allStudents) : null, allStudents);
     const houseTd = createStudentInfoCell(student.house, canEditStudentInfo ? () => makeCellEditable(houseTd, student, 'house', settings, events_by_name, participation, event_participation_counts, events_by_id, allStudents) : null, allStudents);
+    const sexTd = createStudentInfoCell(student.sex, canEditStudentInfo ? () => makeCellEditable(sexTd, student, 'sex', settings, events_by_name, participation, event_participation_counts, events_by_id, allStudents) : null, allStudents);
     const yearTd = createStudentInfoCell(student.year, canEditStudentInfo ? () => makeCellEditable(yearTd, student, 'year', settings, events_by_name, participation, event_participation_counts, events_by_id, allStudents) : null, allStudents);
 
     if (issue?.house_invalid) houseTd.classList.add("cell-warning");
@@ -116,12 +119,13 @@ function renderStudentRow(
 
     tr.appendChild(nameTd);
     tr.appendChild(houseTd);
+    tr.appendChild(sexTd);
     tr.appendChild(yearTd);
 
     // Event Checkboxes
     for (const eventName of eventNames) {
-        const eventsForName = events_by_name[eventName];
-        const matchedEvent = findMatchingEvent(eventsForName, student.year);
+        const eventsForName = events_by_name[eventName]; // This key now includes sex, e.g., "Y7M 100m"
+        const matchedEvent = findMatchingEvent(eventsForName, student.year, student.sex);
 
         const td = document.createElement("td");
         td.className = "text-center p-0";
@@ -221,7 +225,7 @@ function makeCellEditable(td, student, field, settings, events_by_name, particip
     const originalValue = td.textContent;
     const tr = td.closest('tr');
 
-    // Temporarily remove the listener to prevent re-triggering on the new input
+    // Temporarily remove the listener to prevent re-triggering on the new input.
     td.removeEventListener('dblclick', td.dblclickListener);
 
     td.innerHTML = ''; // Clear the cell
@@ -234,6 +238,10 @@ function makeCellEditable(td, student, field, settings, events_by_name, particip
             const option = new Option(house, house);
             input.add(option);
         });
+    } else if (field === 'sex') {
+        input = document.createElement('select');
+        input.add(new Option('Male', 'male'));
+        input.add(new Option('Female', 'female'));
     } else if (field === 'year') {
         input = document.createElement('select');
         const yearSet = new Set();
@@ -274,10 +282,11 @@ function makeCellEditable(td, student, field, settings, events_by_name, particip
             student[field] = newValue;
 
             // Send update to backend
-            const res = await window.onUpdateStudent(student.id, { [field]: newValue });
+            const res = await window.onUpdateStudent(student.id, { [field]: newValue }, window.sportsdayId);
 
             if (res.ok) {
                 // Recalculate and apply the new status
+
                 updateRowHighlight(tr, student, participation, settings, event_participation_counts, events_by_id, allStudents);
             } else {
                 // Revert on failure
@@ -429,20 +438,23 @@ function applyFilters() {
 
     const nameFilter = filters.find(f => f.type === 'name').value;
     const houseFilter = filters.find(f => f.type === 'house').value;
+    const sexFilter = filters.find(f => f.type === 'sex').value;
     const yearFilter = filters.find(f => f.type === 'year').value;
     const eventFilters = filters.filter(f => f.type === 'event');
 
     const rows = document.querySelectorAll("#studentsTable tr");
 
     rows.forEach(row => {
-        const nameInput = row.cells[0].querySelector('input, select');
-        const houseInput = row.cells[1].querySelector('input, select');
-        const yearInput = row.cells[2].querySelector('input, select');
+        const nameInput = row.cells[0]?.querySelector('input, select');
+        const houseInput = row.cells[1]?.querySelector('input, select');
+        const sexInput = row.cells[2]?.querySelector('input, select');
+        const yearInput = row.cells[3]?.querySelector('input, select');
 
         // Get value from input if in edit mode, otherwise from the cell's text content.
-        const name = (nameInput ? nameInput.value : row.cells[0].textContent).toLowerCase();
-        const house = (houseInput ? houseInput.value : row.cells[1].textContent).toLowerCase();
-        const year = (yearInput ? yearInput.value : row.cells[2].textContent).toLowerCase();
+        const name = (nameInput ? nameInput.value : row.cells[0]?.textContent || '').toLowerCase();
+        const house = (houseInput ? houseInput.value : row.cells[1]?.textContent || '').toLowerCase();
+        const sex = (sexInput ? sexInput.value : row.cells[2]?.textContent || '').toLowerCase();
+        const year = (yearInput ? yearInput.value : row.cells[3]?.textContent || '').toLowerCase();
 
 
         let isVisible = true;
@@ -450,12 +462,13 @@ function applyFilters() {
         if (nameFilter && !name.includes(nameFilter)) isVisible = false;
         if (houseFilter && !house.includes(houseFilter)) isVisible = false;
         if (yearFilter && !year.includes(yearFilter)) isVisible = false;
+        if (sexFilter && !sex.includes(sexFilter)) isVisible = false;
 
         eventFilters.forEach(filter => {
             if (filter.value === 'all') return;
 
-            // +3 to account for Name, House, Year columns
-            const eventCell = row.cells[filter.index + 3];
+            // +4 to account for Name, House, Sex, Year columns
+            const eventCell = row.cells[filter.index + 4];
             const checkbox = eventCell.querySelector('input[type="checkbox"]');
 
             if (!checkbox) return; // Inapplicable event for this student
@@ -501,7 +514,7 @@ function sortAndReorderTable(columnIndex, direction) {
         let valueA, valueB;
 
         // Handle event columns (checkboxes)
-        if (columnIndex >= 3) {
+        if (columnIndex >= 4) {
             const inputA = cellA.querySelector('input[type="checkbox"]');
             const inputB = cellB.querySelector('input[type="checkbox"]');
             valueA = inputA ? inputA.checked : false;

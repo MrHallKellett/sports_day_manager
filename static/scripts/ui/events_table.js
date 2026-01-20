@@ -2,8 +2,8 @@
 import { updateEvent } from '../api/events.js';
 import { showToast } from './toast.js';
 
-const EDITABLE_FIELDS = [
-    'name', 'year_group', 'category', 'result_format',
+const EDITABLE_FIELDS = [ // Order matters for table rendering and display
+    'name', 'sex', 'year_group', 'category', 'result_format',
     'min_participants', 'max_participants', 'scoring_places',
     'points_1st', 'points_nth', 'min_per_house', 'max_per_house'
 ];
@@ -11,7 +11,7 @@ const EDITABLE_FIELDS = [
 export function renderEventsTable(events, warnings, sportsdayId, settings) {
     const table = document.getElementById('eventsTable');
     const thead = table.querySelector('thead');
-    const tbody = document.getElementById('eventsTableBody');
+    const tbody = document.getElementById('eventsTableBody'); // Corrected ID
 
     thead.innerHTML = `
         <tr>
@@ -72,6 +72,11 @@ function makeCellEditable(td, event, field, settings) {
     } else if (field === 'category' || field === 'result_format') {
         input = document.createElement('select');
         const options = field === 'category' ? ['track', 'field'] : ['time', 'distance', 'points'];
+        options.forEach(opt => input.add(new Option(opt, opt)));
+    } else if (field === 'sex') {
+        input = document.createElement('select');
+        // Options for sex
+        const options = ['male', 'female', 'mixed'];
         options.forEach(opt => input.add(new Option(opt, opt)));
     }
     else {

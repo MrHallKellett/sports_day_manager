@@ -9,6 +9,7 @@ class Event(db.Model):
 
     name = db.Column(db.String)
     year_group = db.Column(db.String)
+    sex = db.Column(db.String, nullable=False, default='mixed') # male, female, mixed
     category = db.Column(db.String)   # track / field
     result_format = db.Column(db.String)
 
@@ -30,6 +31,7 @@ class Event(db.Model):
             "sports_day_id": self.sports_day_id,
             "name": self.name,
             "year_group": self.year_group,
+            "sex": self.sex,
             "category": self.category,
             "result_format": self.result_format,
             "min_participants": self.min_participants,
@@ -80,6 +82,7 @@ class Student(db.Model):
     name = db.Column(db.String, nullable=False)
     year = db.Column(db.Integer, nullable=False)
     house = db.Column(db.String, nullable=False)
+    sex = db.Column(db.String, nullable=False) # male, female
     email = db.Column(db.String, nullable=True)
 
     sports_days = db.relationship(
@@ -96,6 +99,16 @@ class Student(db.Model):
             unique=True
         ),
     )
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "year": self.year,
+            "house": self.house,
+            "sex": self.sex,
+            "email": self.email
+        }
 
 
 class EventParticipant(db.Model):

@@ -17,6 +17,7 @@ import { computeEventWarnings } from "../domain/events.js";
 import { indexIssues } from "../domain/issues.js";
 import { findExistingStudent } from "../domain/students.js";
 import { getValue } from "./helpers.js"
+import { getSexAbbreviation } from "../domain/events.js";
 
 import { showToast } from "../ui/toast.js";
 import { showError, showConfirm } from "../ui/feedback.js";
@@ -34,6 +35,23 @@ export function buildRequirementsPayload() {
         overall_max: parseInt(getValue("overallMax")),
         year_groups: getSelectedYearGroups(),
         houses: getHouses()
+    }
+}
+
+/**
+ * Fetches the latest event data and re-renders all dependent components.
+ * This is the single source of truth for refreshing event-related UI.
+ */
+async function refreshAllEventData() {
+    // 1. Re-fetch the events to get the latest data and update the shared cache.
+    allSportsDayEvents = await fetchEvents(sportsdayId);
+    // 2. Re-render the events table itself.
+    await loadEvents(sportsdayId);
+    // 3. Re-render the staff table which depends on event names.
+    await loadStaffSection();
+    // 4. If the results tab is active, re-render it.
+    if (document.querySelector('.tab-pane[data-pane="results"]').style.display === 'block') {
+        setupResultsTabForAdmin();
     }
 }
 
@@ -345,17 +363,12 @@ async function onToggleDuplicateDropdown() {
 
 async function onConfirmDuplicate(sourceEventId) {
     if (!sourceEventId) return;
-    await duplicateEvent(sportsdayId, sourceEventId);
+    await duplicateEvent(sportsdayId, sourceEventId); // This triggers the backend to create the event
     showToast('Event duplicated successfully. A "copy" has been added to the name.', { type: 'success' });
-    await loadEvents(sportsdayId);
+    await refreshAllEventData(); // Refresh all UI components that depend on events
 }
 
-window.onEventUpdated = async () => {
-    // 1. Re-fetch the events to get the latest data and update the shared cache.
-    allSportsDayEvents = await fetchEvents(sportsdayId);
-    // Re-render the staff table to reflect the changes in event names/details.
-    await loadStaffSection();
-};
+window.onEventUpdated = refreshAllEventData;
 
 function closeDuplicateDropdownOnClickOutside(event) {
     const dropdown = document.getElementById('duplicateDropdown');
@@ -374,8 +387,8 @@ function onDownloadStudentTemplate() {
 async function onDownloadStaffTemplate() {
     try {
         const staffAssignments = await fetchStaff(sportsdayId);
-        const events = allSportsDayEvents; // Use cached events
-        const eventsById = new Map(events.map(e => [e.id, `Y${e.year_group} ${e.name}`]));
+        const events = allSportsDayEvents; // Use cached events from page load
+        const eventsById = new Map(events.map(e => [e.id, `Y${e.year_group}${getSexAbbreviation(e.sex)} ${e.name}`]));
 
         const dataForCsv = staffAssignments.map(s => ({
             name: s.name,
@@ -423,8 +436,8 @@ function downloadCsv(content, fileName) {
 /* Callbacks for UI               */
 /* ------------------------------ */
 
-window.onUpdateStudent = async (studentId, payload) => {
-    const res = await updateStudent(studentId, payload);
+window.onUpdateStudent = async (studentId, payload, sportsdayId) => {
+    const res = await updateStudent(studentId, payload, sportsdayId);
     if (!res.ok) {
         showError("Failed to update student");
     } else {
@@ -482,10 +495,11 @@ function attachNewStudentFormHandler(students) {
 
         const name = document.getElementById("newStudentName").value.trim();
         const house = document.getElementById("newStudentHouse").value;
+        const sex = document.getElementById("newStudentSex").value;
         const year = parseInt(document.getElementById("newStudentYear").value);
 
-        if (!name || !house || !year) {
-            showErrors(["Please fill in all fields."]);
+        if (!name || !house || !year || !sex) {
+            showErrors(["All fields are required."]);
             return;
         }
 
@@ -493,8 +507,7 @@ function attachNewStudentFormHandler(students) {
 
         if (!existing) {
             // CASE 1: Brand new student
-            await window.onCreateStudent({ name, house, year });
-            newForm.reset(); // Clear the form
+            await window.onCreateStudent({ name, house, year, sex });
         } else {
             // CASE 2: Student already exists
             showErrors([
@@ -593,15 +606,24 @@ function setupTabs() {
             tab.classList.toggle('hover:border-gray-300', !isSelected);
         });
 
-        if (tabName === 'results') {
-            const authCode = sessionStorage.getItem('staffAuthCode');
-            // Use the shared results tab setup function
-            setupResultsTab(allSportsDayEvents, authCode, 'admin-event-results-container', 'admin-event-results-select');
-        }
-
         panes.forEach(pane => {
             pane.style.display = pane.dataset.pane === tabName ? 'block' : 'none';
         });
+
+        if (tabName === 'results') {
+            setupResultsTabForAdmin();
+        }
+    }
+
+    function setupResultsTabForAdmin() {
+        const authCode = sessionStorage.getItem('staffAuthCode');
+        // Format events for display in the results dropdown
+        const formattedEvents = allSportsDayEvents.map(e => ({
+            ...e,
+            display_name: `Y${e.year_group}${getSexAbbreviation(e.sex)} ${e.name}`
+        }));
+        // Use the shared results tab setup function
+        setupResultsTab(formattedEvents, authCode, 'admin-event-results-container', 'admin-event-results-select');
     }
 
     tabs.forEach(tab => {
@@ -620,6 +642,12 @@ const sportsdayId = parseInt(
 );
 
 document.addEventListener('DOMContentLoaded', async () => {
+    // Show loading overlay
+    const loadingOverlay = document.getElementById('loading-overlay');
+    if (loadingOverlay) {
+        loadingOverlay.style.display = 'flex';
+    }
+
     // --- Security Check ---
     const authCode = sessionStorage.getItem('staffAuthCode');
     if (!authCode) {
@@ -699,4 +727,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Load all initial data for the page
     setupTabs();
     await loadSportsDay(sportsdayId); // Await the async function call
+
+    // Hide loading overlay
+    if (loadingOverlay) {
+        loadingOverlay.style.display = 'none';
+    }
 });

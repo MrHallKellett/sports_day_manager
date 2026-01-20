@@ -28,6 +28,7 @@ export async function initYearGroups(sportsDayId) {
 function buildEventPayload() {
     return {
         name: getValue("name"),
+        sex: getValue("sex"),
         year_group: getValue("year_group"),
         category: getValue("category"),
         result_format: getValue("result_format"),
@@ -67,18 +68,16 @@ if (!form) {
             if (mode === "create") {
                 payload.sports_day_id = parseInt(sportsDayId);
             }
-            
-            const res = (mode === 'create')
-                ? await apiClient(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-                : await updateEvent(eventId, payload);
-            
-            
 
-            if (res.ok) {
+            try {
+                let data;
                 if (mode === 'create') {
+                    const res = await apiClient(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                    if (!res.ok) throw new Error(await res.text());
+                    data = await res.json();
                     sessionStorage.setItem('toastMessage', `Event '${payload.name}' created successfully.`);
                 } else { // mode === 'edit'
-                    const data = await res.json();
+                    data = await updateEvent(eventId, payload);
                     if (data.removed_count > 0) {
                         const message = `Event '${payload.name}' updated. ${data.removed_count} student(s) were automatically removed due to the year group change.`;
                         sessionStorage.setItem('toastMessage', message);
@@ -86,9 +85,8 @@ if (!form) {
                 }
                 sessionStorage.setItem('activeAdminTab', 'events'); // Set the active tab for the redirect
                 window.location.href = `/admin/sportsday/${sportsDayId}`;
-            } else {
-                const errorText = await res.text();
-                showError(`Failed to update event: ${errorText}`);
+            } catch (error) {
+                showError(`Failed to update event: ${error.message}`);
             }
         };
 

@@ -1,4 +1,5 @@
 // static/scripts/ui/staff_table.js
+import { getSexAbbreviation } from '../domain/events.js';
 
 import { getClassesFromSettings } from '../domain/classes.js';
 import { showConfirm } from '../ui/feedback.js';
@@ -22,7 +23,7 @@ export function setupStaffForm(settings, events, onAddStaff) {
 
     // Populate events
     eventsSelect.innerHTML = '';
-    events.forEach(e => eventsSelect.add(new Option(`Y${e.year_group} ${e.name}`, e.id)));
+    events.forEach(e => eventsSelect.add(new Option(`Y${e.year_group}${getSexAbbreviation(e.sex)} ${e.name}`, e.id)));
     
     function updateFormBasedOnRoles() {
         const selectedRoles = roleCheckboxes.filter(cb => cb.checked).map(cb => cb.value);
@@ -304,8 +305,8 @@ function createStaffRow(assignment, allEvents, settings, eventsById, allPossible
         name: { value: assignment.name, type: 'text' },
         email: { value: assignment.email || '', type: 'text' },
         roles: { value: assignment.roles.join(', '), type: 'multiselect', options: ['Admin', 'Form Tutor', 'Event Steward'], current: assignment.roles },
-        assigned_classes: { value: (assignment.assigned_classes || []).join(', '), type: 'multiselect', options: allPossibleClasses, current: assignment.assigned_classes || [] },
-        assigned_events: { value: (assignment.assigned_events || []).map(id => eventsById.get(id)).join(', '), type: 'multiselect', options: allEvents.map(e => ({ text: `Y${e.year_group} ${e.name}`, value: e.id })), current: assignment.assigned_events },
+        assigned_classes: { value: (assignment.assigned_classes || []).join(', '), type: 'multiselect', options: allPossibleClasses, current: assignment.assigned_classes || [] }, // Note: allPossibleClasses is just a list of strings
+        assigned_events: { value: (assignment.assigned_events || []).map(id => eventsById.get(id)).join(', '), type: 'multiselect', options: allEvents.map(e => ({ text: `Y${e.year_group}${getSexAbbreviation(e.sex)} ${e.name}`, value: e.id })), current: assignment.assigned_events },
         sign_in_code: { value: assignment.sign_in_code, type: 'readonly' },
         actions: { value: '', type: 'actions' }
     };

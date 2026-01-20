@@ -2,16 +2,24 @@
 
 import { getApplicableGroups } from "./age_groups.js"
 
-export function findMatchingEvent(eventsForName, studentYear) {
+export function getSexAbbreviation(sex) {
+    if (sex === 'male') return 'M';
+    if (sex === 'female') return 'F';
+    return 'X'; // For mixed
+}
+
+export function findMatchingEvent(eventsForName, studentYear, studentSex) {
     const studentEligibleGroups = getApplicableGroups(studentYear);
 
     return eventsForName.find(event => {
         const eventApplicableGroups = getApplicableGroups(event.year_group);
         // Check for any intersection between the two sets.
-        for (const group of studentEligibleGroups) {
-            if (eventApplicableGroups.has(group)) return true;
-        }
-        return false;
+        const yearGroupMatch = Array.from(studentEligibleGroups).some(group => eventApplicableGroups.has(group));
+
+        // Check sex compatibility
+        const sexMatch = event.sex === 'mixed' || event.sex === studentSex;
+
+        return yearGroupMatch && sexMatch;
     });
 }
 

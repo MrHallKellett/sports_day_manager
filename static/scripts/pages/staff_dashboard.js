@@ -2,6 +2,7 @@
 
 import { fetchStudentsForSportsDay } from '../api/students.js';
 import { renderStudentsTable } from '../ui/students_table.js';
+import { getSexAbbreviation } from '../domain/events.js';
 import { toggleParticipation } from '../api/events.js';
 import { setupResultsTab } from '../ui/results_table.js';
 import { showError, showConfirm } from '../ui/feedback.js';
@@ -51,8 +52,13 @@ function setupTabs(roles, sportsdayId, assignment, code) {
             loadStudentData(sportsdayId, assignment);
         }
         if (tabName === 'results' && roles.includes('Event Steward')) {
+            // Format event names for display in the dropdown
+            const formattedEvents = assignment.assigned_event_objects.map(e => ({
+                ...e,
+                display_name: `Y${e.year_group}${getSexAbbreviation(e.sex)} ${e.name}`
+            }));
             // The results tab setup is now called here
-            setupResultsTab(assignment.assigned_event_objects, code);
+            setupResultsTab(formattedEvents, code);
         }
     }
 
@@ -146,7 +152,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             roleDetails.push(`Form Tutor (${assignment.assigned_classes.join(', ')})`);
         }
         if (assignment.roles.includes('Event Steward') && assignment.assigned_event_objects?.length > 0) {
-            const eventNames = assignment.assigned_event_objects.map(e => `Y${e.year_group} ${e.name}`);
+            const eventNames = assignment.assigned_event_objects.map(e => `Y${e.year_group}${getSexAbbreviation(e.sex)} ${e.name}`);
             roleDetails.push(`Event Steward (${eventNames.join(', ')})`);
         } else if (assignment.roles.includes('Event Steward')) {
             // Handle case where steward has no events assigned yet

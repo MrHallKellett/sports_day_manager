@@ -15,6 +15,8 @@ import string
 import csv
 import io
 
+
+
 def log_action(sports_day_id, user_info, action):
     log = AuditLog(
         sports_day_id=sports_day_id,
@@ -22,6 +24,13 @@ def log_action(sports_day_id, user_info, action):
         action=action
     )
     db.session.add(log)
+
+def get_sex_abbreviation(sex):
+    if sex == 'male':
+        return 'M'
+    if sex == 'female':
+        return 'F'
+    return 'X' # For mixed
 
 def get_user_info_from_request():
     """
@@ -176,6 +185,7 @@ def prep_event_payload(events):
             "id": e.id,
             "sports_day_id": e.sports_day_id,
             "name": e.name,
+            "sex": e.sex,
             "year_group": e.year_group,
             "category": e.category,
             "result_format": e.result_format,
@@ -214,6 +224,7 @@ def create_event():
     e = Event(
         sports_day_id=d["sports_day_id"],
         name=d["name"],
+        sex=d["sex"],
         year_group=d["year_group"],
         category=d["category"],
         result_format=d["result_format"],
@@ -226,7 +237,7 @@ def create_event():
         max_per_house=d.get("max_per_house", 999999),
     )
     db.session.add(e)
-    log_action(d["sports_day_id"], get_user_info_from_request(), f"created new event '{d['name']}' for year group {d['year_group']}")
+    log_action(d["sports_day_id"], get_user_info_from_request(), f"created new event '{d['name']}' ({d['sex']}) for year group {d['year_group']}")
     db.session.commit()
     return created({"id": e.id})
 
@@ -259,7 +270,7 @@ def update_event(eid):
         abort(403, "You are not authorized to update events for this sports day.")
 
     for k,v in data.items():
-        if k in ALLOWED_PATCH_FIELDS:
+        if k in ALLOWED_PATCH_FIELDS or k == 'sex':
             setattr(e, k, v)
             log_action(e.sports_day_id, get_user_info_from_request(), f"updated event '{e.name}', set {k} to '{v}'")
 
@@ -381,11 +392,17 @@ def get_event_results(event_id):
     # Calculate house participation counts for this specific event
     event_participants = EventParticipant.query.filter_by(event_id=event_id).all()
     participant_student_ids = [ep.student_id for ep in event_participants]
-    participant_students = Student.query.filter(Student.id.in_(participant_student_ids)).all()
+    # We need student's sex for quota checks if the event is single-sex
+    participant_students = Student.query.filter(Student.id.in_(participant_student_ids)).all() 
     
     house_counts_for_this_event = {}
-    for student in participant_students:
-        house_counts_for_this_event[student.house] = house_counts_for_this_event.get(student.house, 0) + 1
+    if event.sex == 'mixed':
+        for student in participant_students:
+            house_counts_for_this_event[student.house] = house_counts_for_this_event.get(student.house, 0) + 1
+    else: # For single-sex events, the quota applies to that sex within the house
+        for student in participant_students:
+            if student.sex == event.sex:
+                house_counts_for_this_event[student.house] = house_counts_for_this_event.get(student.house, 0) + 1
 
     return ok({
         "participants": payload,
@@ -418,11 +435,12 @@ def duplicate_event_options():
             "event_id": e.id,
             "sports_day_id": sd.id,
             "sports_day_name": f"Sports Day {sd.year}",
-            "event_year_group": e.year_group,
-            "event_name": e.name
+            "event_year_group": e.year_group, # Keep for filtering
+            "event_name": f"Y{e.year_group}{get_sex_abbreviation(e.sex)} {e.name}" # Full name for display
         }
         for e, sd in events
     ])
+
 
 @bp.post("/sportsdays/<int:sd_id>/events/duplicate")
 def duplicate_event(sd_id):
@@ -437,6 +455,7 @@ def duplicate_event(sd_id):
     new_event = Event(
         sports_day_id=sd_id,
         name=source.name + " copy",
+        sex=source.sex,
         year_group=source.year_group,
         category=source.category,
         result_format=source.result_format,
@@ -482,7 +501,7 @@ def upload_events(sd_id):
         abort(400, "CSV file has no header row")
 
     headers = {h.strip().lower() for h in reader.fieldnames}
-    required = {"name", "year_group", "category", "result_format"}
+    required = {"name", "sex", "year_group", "category", "result_format"}
     if required - headers:
         abort(400, f"CSV is missing required column(s): {', '.join(sorted(required - headers))}")
 
@@ -495,16 +514,17 @@ def upload_events(sd_id):
     for row_num, raw in enumerate(reader, start=2):
         name = raw.get("name", "").strip()
         year_group = raw.get("year_group", "").strip()
+        sex = raw.get("sex", "").strip().lower()
 
         # Validation 1: Duplicate name + year_group in the CSV
-        if (name.lower(), year_group) in seen_events:
-            errors.append(f"Row {row_num}: Duplicate event '{name}' for year group '{year_group}' found in the file.")
+        if (name.lower(), year_group, sex) in seen_events:
+            errors.append(f"Row {row_num}: Duplicate event '{name}' for year group '{year_group}' ({sex}) found in the file.")
             continue
-        seen_events.add((name.lower(), year_group))
+        seen_events.add((name.lower(), year_group, sex))
 
         # Validation 2: Year group not allowed for this sports day
         if year_group not in years_allowed and year_group not in ["KS4", "KS5"]:
-             # This check is a bit simplistic, a real one would check constituent years
+             # This check is a bit simplistic, a real one would check constituent years.
              errors.append(f"Row {row_num}: Year group '{year_group}' is not enabled for this sports day.")
              continue
 
@@ -512,6 +532,7 @@ def upload_events(sd_id):
             event_data = {
                 "sports_day_id": sd_id,
                 "name": name,
+                "sex": sex,
                 "year_group": year_group,
                 "category": raw.get("category", "").strip(),
                 "result_format": raw.get("result_format", "").strip(),
@@ -724,10 +745,10 @@ def upload_staff(sd_id):
     # 1. Get all possible valid class names for this sports day
     all_houses, all_years = get_allowed_houses_and_years(sd_id)
     valid_class_names = {f"Y{year} {house}" for year in all_years for house in all_houses}
-
+    
     # 2. Get all events and create a lookup map: "y<year_group> <event_name>" -> event_id
-    all_events = Event.query.filter_by(sports_day_id=sd_id).all()
-    event_name_to_id_map = {f"Y{e.year_group} {e.name}".lower(): e.id for e in all_events}
+    all_events_for_map = Event.query.filter_by(sports_day_id=sd_id).all()
+    event_name_to_id_map = {f"Y{e.year_group}{get_sex_abbreviation(e.sex)} {e.name}".lower(): e.id for e in all_events_for_map}
 
     created_count = 0
     skipped_count = 0
@@ -828,7 +849,7 @@ def update_student(student_id):
     if not is_authorized_for_sportsday(auth_code, sports_day_id):
         abort(403, "You are not authorized to update students for this sports day.")
 
-    allowed_fields = {"name", "house", "year"}
+    allowed_fields = {"name", "house", "year", "sex"}
 
     for key, value in data.items():
         if key not in allowed_fields:
@@ -859,7 +880,7 @@ def create_student():
     if not is_authorized_for_sportsday(auth_code, sports_day_id):
         abort(403, "You are not authorized to create students for this sports day.")
 
-    required = {"name", "house", "year"}
+    required = {"name", "house", "year", "sex"}
     missing = required - data.keys()
     if missing:
         abort(400, f"Missing required field(s): {', '.join(sorted(missing))}")
@@ -871,8 +892,9 @@ def create_student():
 
     name = data["name"].strip()
     house = data["house"].strip()
+    sex = data["sex"].strip().lower()
 
-    if not name or not house:
+    if not name or not house or not sex:
         abort(400, "Name and house cannot be empty")
 
     # -----------------------------
@@ -894,6 +916,7 @@ def create_student():
                 "id": existing.id,
                 "name": existing.name,
                 "house": existing.house,
+                "sex": existing.sex,
                 "year": existing.year
             }
         })
@@ -904,6 +927,7 @@ def create_student():
     student = Student(
         name=name,
         house=house,
+        sex=sex,
         year=year
     )
 
@@ -917,6 +941,7 @@ def create_student():
             "id": student.id,
             "name": student.name,
             "house": student.house,
+            "sex": student.sex,
             "year": student.year
         }
     })
@@ -1039,7 +1064,7 @@ def upload_students(sd_id):
         abort(400, "CSV file has no header row")
 
     headers = {h.strip().lower() for h in reader.fieldnames}
-    required = {"name", "house", "year"}
+    required = {"name", "house", "year", "sex"}
     missing = required - headers
 
     if missing:
@@ -1059,6 +1084,7 @@ def upload_students(sd_id):
             name = raw.get("name", "").strip()
             house = raw.get("house", "").strip()
             year = int(raw.get("year", "").strip())
+            sex = raw.get("sex", "").strip().lower()
         except ValueError:
             abort(400, f"Invalid year value on row {row_num} (must be a number)")
 
@@ -1093,6 +1119,7 @@ def upload_students(sd_id):
                 name=name,
                 house=house,
                 year=year,
+                sex=sex,
                 email=email
             )
             db.session.add(student)
@@ -1196,9 +1223,11 @@ def get_students(sd_id):
     events_by_name = {}
 
     for e in events:
+        # Group events by their base name, collapsing year and sex variations.
         events_by_name.setdefault(e.name, []).append({
             "id": e.id,
             "year_group": str(e.year_group),
+            "sex": e.sex,
             "category": e.category,
             "max_per_house": e.max_per_house
         })
@@ -1209,6 +1238,7 @@ def get_students(sd_id):
                 "id": s.id,
                 "name": s.name,
                 "house": s.house,
+                "sex": s.sex,
                 "year": s.year,
                 "email": s.email
             }
@@ -1218,7 +1248,7 @@ def get_students(sd_id):
         "participation": {
             str(k): list(v) for k, v in participation.items()
         },
-        "events_by_id": events_by_id,
+        "events_by_id": {str(k): v for k, v in events_by_id.items()},
         "event_participation_counts": {str(k): v for k, v in event_participation_counts.items()}
     })
 
@@ -1230,53 +1260,71 @@ def all_participants():
         for ep in eps
     ])
 
+@bp.delete("/events/<int:event_id>/participants/<int:student_id>")
+def remove_participant(event_id, student_id):
+    # This now acts as a wrapper for the toggle logic, passing on=False
+    return toggle_participation(event_id, student_id, on=False)
+
+@bp.post("/events/<int:event_id>/participants/<int:student_id>/toggle")
+def toggle_participation(event_id, student_id, on=None):
+    event = Event.query.get_or_404(event_id)
+    student = Student.query.get_or_404(student_id)
+    user_info = get_user_info_from_request()
+    if on is None: # If not passed directly, get from request body
+        on = request.json.get("on", False)
+
+    # Authorization check
+    auth_code = request.headers.get('X-Auth-Code')
+    if not is_authorized_for_sportsday(auth_code, event.sports_day_id):
+        abort(403, "You are not authorized to modify participation for this event.")
+
+    # Validate student sex against event sex
+    if event.sex != 'mixed' and student.sex != event.sex:
+        abort(400, f"This event is for {event.sex} participants only.")
+
+    if on:
+        # --- Add participant ---
+        ep = EventParticipant(event_id=event_id, student_id=student_id)
+        db.session.add(ep)
+        log_action(event.sports_day_id, user_info, f"added '{student.name}' to event '{event.name}' (Y{event.year_group})")
+        db.session.commit()
+
+        # After committing, calculate the new counts to return to the frontend
+        current_participants = EventParticipant.query.filter_by(event_id=event_id).all()
+        participant_student_ids = {p.student_id for p in current_participants}
+        participant_students = Student.query.filter(Student.id.in_(participant_student_ids)).all()
+
+        total_participants = len(current_participants)
+        house_count = sum(1 for s in participant_students if s.house == student.house)
+
+        return created({
+            "new_state": {
+                "event_name": event.name,
+                "student_house": student.house,
+                "total_participants": total_participants,
+                "house_participants": house_count,
+                "max_participants": event.max_participants,
+                "max_per_house": event.max_per_house
+            }
+        })
+    else:
+        # --- Remove participant ---
+        ep = EventParticipant.query.filter_by(event_id=event_id, student_id=student_id).first()
+        if not ep:
+            return abort(404)
+
+        db.session.delete(ep)
+        log_action(event.sports_day_id, user_info, f"removed '{student.name}' from event '{event.name}' (Y{event.year_group})")
+        db.session.commit()
+        return ok({"message": "removed"})
+
+
 
 @bp.post("/events/<int:event_id>/participants")
 def add_participant(event_id):
-    event = Event.query.get_or_404(event_id)
     student_id = request.json["student_id"]
-    student = Student.query.get_or_404(student_id)
-
-    user_info = get_user_info_from_request()
-
-    ep = EventParticipant(event_id=event_id, student_id=student_id)
-    db.session.add(ep)
-    db.session.commit()
-
-    # After committing, calculate the new counts to return to the frontend
-    current_participants = EventParticipant.query.filter_by(event_id=event_id).all()
-    participant_student_ids = {p.student_id for p in current_participants}
-    participant_students = Student.query.filter(Student.id.in_(participant_student_ids)).all()
-
-    total_participants = len(current_participants)
-    house_count = sum(1 for s in participant_students if s.house == student.house)
-
-    log_action(event.sports_day_id, user_info, f"added '{student.name}' to event '{event.name}' (Y{event.year_group})")
-
-    return created({
-        "id": ep.id,
-        "new_state": {
-            "event_name": event.name,
-            "student_house": student.house,
-            "total_participants": total_participants,
-            "house_participants": house_count,
-            "max_participants": event.max_participants,
-            "max_per_house": event.max_per_house
-        }
-    })
-
-@bp.delete("/events/<int:event_id>/participants/<int:student_id>")
-def remove_participant(event_id, student_id):
-    event = Event.query.get_or_404(event_id)
-    student = Student.query.get_or_404(student_id)
-    ep = EventParticipant.query.filter_by(event_id=event_id, student_id=student_id).first()
-    if not ep:
-        return abort(404)
-    db.session.delete(ep)
-    user_info = get_user_info_from_request()
-    log_action(event.sports_day_id, user_info, f"removed '{student.name}' from event '{event.name}' (Y{event.year_group})")
-    db.session.commit()
-    return ok({"message": "removed"})
+    # This now acts as a wrapper for the toggle logic, passing on=True
+    return toggle_participation(event_id, student_id, on=True)
 
 @bp.patch("/events/<int:event_id>/results/<int:student_id>")
 def update_result(event_id, student_id):

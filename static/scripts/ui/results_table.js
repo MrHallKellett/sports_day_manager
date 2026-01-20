@@ -21,7 +21,8 @@ export async function setupResultsTab(assignedEvents, code, containerElementId =
 
     eventSelect.innerHTML = '<option value="">Select an event...</option>';
     assignedEvents.forEach(event => {
-        const option = new Option(`Y${event.year_group} ${event.name}`, event.id);
+        // Use the pre-formatted display_name if it exists, otherwise fall back to the old format.
+        const option = new Option(event.display_name || `Y${event.year_group} ${event.name}`, event.id);
         option.dataset.resultFormat = event.result_format;
         eventSelect.add(option);
     });

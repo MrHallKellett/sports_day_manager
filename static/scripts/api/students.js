@@ -19,10 +19,13 @@ export async function uploadStudentsCsv(sportsdayId, file) {
 
 /* ✅ NEW */
 
-export async function updateStudent(studentId, payload) {
+export async function updateStudent(studentId, payload, sportsdayId) {
     return apiClient(`/students/${studentId}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+            "Content-Type": "application/json",
+            "X-Sports-Day-ID": sportsdayId
+        },
         body: JSON.stringify(payload)
     });
 }
