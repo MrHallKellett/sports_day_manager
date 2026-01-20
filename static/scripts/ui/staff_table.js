@@ -1,173 +1,334 @@
 // static/scripts/ui/staff_table.js
 
-import { showToast } from "./toast.js";
-import { getEventNamesFromIds } from "../domain/staff_table.js";
+import { getClassesFromSettings } from '../domain/classes.js';
+import { showConfirm } from '../ui/feedback.js';
 
 export function setupStaffForm(settings, events, onAddStaff) {
     const form = document.getElementById('newStaffForm');
+    if (!form) return; // Guard against running on wrong page
+
+    const roleAdminCb = document.getElementById('newStaffRoleAdmin');
+    const roleFormTutorCb = document.getElementById('newStaffRoleFormTutor');
+    const roleEventStewardCb = document.getElementById('newStaffRoleEventSteward');
+    const roleCheckboxes = [roleAdminCb, roleFormTutorCb, roleEventStewardCb];
     
-    // Use a cloned form to prevent multiple listeners on re-renders
-    const newForm = form.cloneNode(true);
-    
-    
-    const roleFormTutor = newForm.querySelector('#roleFormTutor');
-    const roleEventSteward = newForm.querySelector('#roleEventSteward');
-    const roleAdmin = newForm.querySelector('#roleAdmin');
-    const tutorAssignments = newForm.querySelector('#formTutorAssignments');
-    const stewardAssignments = newForm.querySelector('#eventStewardAssignments');
-    
-    const updateAssignmentVisibility = () => {
-        tutorAssignments.classList.toggle('hidden', !roleFormTutor.checked);
-        stewardAssignments.classList.toggle('hidden', !roleEventSteward.checked);
-    };
+    const classesSelect = document.getElementById('assignClasses');
+    const eventsSelect = document.getElementById('assignEvents');
 
-    roleFormTutor.addEventListener('change', updateAssignmentVisibility);
-    roleEventSteward.addEventListener('change', updateAssignmentVisibility);
-
-    roleAdmin.addEventListener('change', () => {
-        if (roleAdmin.checked) {
-            roleFormTutor.checked = false;
-            roleFormTutor.disabled = true;
-            roleEventSteward.checked = false;
-            roleEventSteward.disabled = true;
-        } else {
-            roleFormTutor.disabled = false;
-            roleEventSteward.disabled = false;
-        }
-        updateAssignmentVisibility(); // Update visibility based on new states
-    });
-    updateAssignmentVisibility(); // Set initial visibility
-    
-    populateAssignmentSelects(newForm, settings, events);
-
-    // Use a cloned form to prevent multiple listeners on re-renders
-    
-    form.parentNode.replaceChild(newForm, form);
-    newForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const name = newForm.querySelector('#newStaffName').value;
-        const emailInput = newForm.querySelector('#newStaffEmail');
-        const email = emailInput ? emailInput.value : '';
-        const roles = Array.from(newForm.querySelectorAll('input[name="roles"]:checked')).map(cb => cb.value);
-        const assigned_classes = roleFormTutor.checked ? Array.from(newForm.querySelector('#assignClasses').selectedOptions).map(opt => opt.value) : [];
-        const assigned_events = roleEventSteward.checked ? Array.from(newForm.querySelector('#assignEvents').selectedOptions).map(opt => parseInt(opt.value)) : [];
-
-        // Pass data up to the controller
-        onAddStaff({ name, email, roles, assigned_classes, assigned_events });
-        newForm.reset();
-        tutorAssignments.classList.add('hidden');
-        stewardAssignments.classList.add('hidden');
-    });
-}
-
-function populateAssignmentSelects(form, settings, events) {
-    const classSelect = form.querySelector('#assignClasses');
-    const eventSelect = form.querySelector('#assignEvents');
-    classSelect.innerHTML = '';
-    eventSelect.innerHTML = '';
-
-    // Populate classes (Year + House)
-    const years = new Set();
-    (settings.year_groups || []).forEach(yg => {
-        if (yg === "KS4") { years.add("10"); years.add("11"); }
-        else if (yg === "KS5") { years.add("12"); years.add("13"); }
-        else { years.add(String(yg)); }
-    });
-
-    (settings.houses || []).forEach(house => {
-        years.forEach(year => {
-            const className = `Y${year} - ${house}`;
-            classSelect.add(new Option(className, className));
-        });
-    });
+    // Populate classes
+    const classes = getClassesFromSettings(settings);
+    classesSelect.innerHTML = '';
+    classes.forEach(c => classesSelect.add(new Option(c, c)));
 
     // Populate events
-    events.forEach(event => {
-        const eventName = `Y${event.year_group} ${event.name}`;
-        eventSelect.add(new Option(eventName, event.id));
-    });
-}
+    eventsSelect.innerHTML = '';
+    events.forEach(e => eventsSelect.add(new Option(`Y${e.year_group} ${e.name}`, e.id)));
+    
+    function updateFormBasedOnRoles() {
+        const selectedRoles = roleCheckboxes.filter(cb => cb.checked).map(cb => cb.value);
+        
+        // Show/hide assignment sections
+        document.getElementById('assignClassesContainer').style.display = selectedRoles.includes('Form Tutor') ? 'block' : 'none';
+        document.getElementById('assignEventsContainer').style.display = selectedRoles.includes('Event Steward') ? 'block' : 'none';
 
-export function renderStaffTable(allStaff, allEvents) {
-    const headerRow = document.getElementById('staff-header-row');
-    const filterRow = document.getElementById('staff-filter-row');
-    const tbody = document.getElementById('staffTable');
-
-    headerRow.innerHTML = `
-        <th class="sticky top-0 bg-gray-50 p-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-        <th class="sticky top-0 bg-gray-50 p-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-        <th class="sticky top-0 bg-gray-50 p-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sign-in Code</th>
-        <th class="sticky top-0 bg-gray-50 p-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Roles</th>
-        <th class="sticky top-0 bg-gray-50 p-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned Classes</th>
-        <th class="sticky top-0 bg-gray-50 p-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned Events</th>
-        <th class="sticky top-0 bg-gray-50 p-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-    `;
-    filterRow.innerHTML = `
-        <th class="sticky top-10 bg-gray-100 p-1"><input type="text" data-filter="name" placeholder="Filter..." class="w-full text-xs p-1"></th>
-        <th class="sticky top-10 bg-gray-100 p-1"><input type="text" data-filter="email" placeholder="Filter..." class="w-full text-xs p-1"></th>
-        <th class="sticky top-10 bg-gray-100 p-1"></th>
-        <th class="sticky top-10 bg-gray-100 p-1"><input type="text" data-filter="roles" placeholder="Filter..." class="w-full text-xs p-1"></th>
-        <th class="sticky top-10 bg-gray-100 p-1"><input type="text" data-filter="assigned_classes" placeholder="Filter..." class="w-full text-xs p-1"></th>
-        <th class="sticky top-10 bg-gray-100 p-1"><input type="text" data-filter="assigned_events" placeholder="Filter..." class="w-full text-xs p-1"></th>
-        <th class="sticky top-10 bg-gray-100 p-1"></th>
-    `;
-
-    tbody.innerHTML = '';
-    if (allStaff.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="py-4 text-center text-gray-500">No staff members found.</td></tr>';
-        return;
+        // Enforce role constraints
+        if (roleAdminCb.checked) {
+            // If Admin is checked, disable and uncheck others
+            roleFormTutorCb.disabled = true;
+            roleEventStewardCb.disabled = true;
+            roleFormTutorCb.checked = false;
+            roleEventStewardCb.checked = false;
+        } else if (roleFormTutorCb.checked || roleEventStewardCb.checked) {
+            // If Form Tutor or Event Steward is checked, disable Admin
+            roleAdminCb.disabled = true;
+        } else {
+            // If no roles are checked, enable all
+            roleAdminCb.disabled = false;
+            roleFormTutorCb.disabled = false;
+            roleEventStewardCb.disabled = false;
+        }
     }
 
-    allStaff.forEach(staff => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td class="px-2 py-1">${staff.name}</td>
-            <td class="px-2 py-1">${staff.email || ''}</td>
-            <td class="px-2 py-1 font-mono">${staff.sign_in_code}</td>
-            <td class="px-2 py-1">${(staff.roles || []).join(', ')}</td>
-            <td class="px-2 py-1">${(staff.assigned_classes || []).join(', ')}</td>
-            <td class="px-2 py-1">${getEventNamesFromIds(staff.assigned_events || [], allEvents).join(', ')}</td>
-            <td class="px-2 py-1">
-                <button data-staff-id="${staff.id}"
-                        class="delete-staff text-red-600 hover:underline text-xs">
-                    Delete
-                </button>
-            </td>
-        `;
-        tbody.appendChild(tr);
-    });
+    roleCheckboxes.forEach(cb => cb.addEventListener('change', updateFormBasedOnRoles));
+    updateFormBasedOnRoles(); // Initial check
 
-    // Basic filtering
-    const filterInputs = filterRow.querySelectorAll('input[data-filter]');
-    filterInputs.forEach(input => {
-        input.addEventListener('input', () => applyStaffFilters(allEvents));
+    // Handle form submission
+    form.onsubmit = async (e) => {
+        e.preventDefault();
+        const name = document.getElementById('newStaffName').value.trim();
+        if (!name) {
+            alert("Staff name is required.");
+            return;
+        }
+        const selectedRoles = roleCheckboxes.filter(cb => cb.checked).map(cb => cb.value);
+        const payload = {
+            name: name,
+            email: document.getElementById('newStaffEmail').value,
+            roles: selectedRoles,
+            assigned_classes: selectedRoles.includes('Form Tutor') ? Array.from(classesSelect.selectedOptions).map(opt => opt.value) : [],
+            assigned_events: selectedRoles.includes('Event Steward') ? Array.from(eventsSelect.selectedOptions).map(opt => opt.value).map(Number) : []
+        };
+        await onAddStaff(payload);
+        form.reset();
+        updateFormBasedOnRoles(); // Reset form state
+    };
+}
+
+export function renderStaffTable(staff, allEvents, settings) {
+    const table = document.getElementById('staffTable'); // Now correctly targets the <table>
+    const thead = table.querySelector('thead');
+    const tbody = document.getElementById('staffTableBody'); // Correctly targets the <tbody>
+    
+    // 1. Render Headers
+    const headers = ['Name', 'Email', 'Roles', 'Assigned Classes', 'Assigned Events', 'Sign-in Code', 'Actions'];
+    thead.innerHTML = `
+        <tr>
+            ${headers.map(h => `<th class="sticky top-0 bg-gray-50 p-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">${h}</th>`).join('')}
+        </tr>
+    `;
+
+    // 2. Render Body
+    tbody.innerHTML = '';
+
+    const eventsById = new Map(allEvents.map(e => [e.id, `Y${e.year_group} ${e.name}`]));
+    const allPossibleClasses = getClassesFromSettings(settings);
+
+    staff.forEach(assignment => {
+        const tr = createStaffRow(assignment, allEvents, settings, eventsById, allPossibleClasses);
+        tbody.appendChild(tr);
     });
 }
 
-function applyStaffFilters(allEvents) {
-    const filters = Array.from(document.querySelectorAll('#staff-filter-row input[data-filter]')).map(el => ({
-        key: el.dataset.filter,
-        value: el.value.toLowerCase()
-    }));
+export function appendStaffRow(assignment, allEvents, settings) {
+    const tbody = document.getElementById('staffTableBody');
+    const tr = createStaffRow(assignment, allEvents, settings);
+    tbody.prepend(tr); // Add to the top of the table
+}
 
-    document.querySelectorAll('#staffTable tr').forEach(row => {
-        let isVisible = true;
-        filters.forEach(filter => {
-            if (!filter.value) return;
-            let cellIndex = -1;
-            if (filter.key === 'name') cellIndex = 0;
-            if (filter.key === 'email') cellIndex = 1;
-            if (filter.key === 'roles') cellIndex = 3;
-            if (filter.key === 'assigned_classes') cellIndex = 4;
-            if (filter.key === 'assigned_events') cellIndex = 5;
+function makeCellEditable(td, assignment, field, config, fields) {
+    const originalValue = td.textContent;
+    td.innerHTML = '';
 
-            if (cellIndex !== -1) {
-                const cellText = row.cells[cellIndex].textContent.toLowerCase();
-                if (!cellText.includes(filter.value)) {
-                    isVisible = false;
+    let input;
+    if (config.type === 'multiselect') {
+        input = document.createElement('select');
+        input.multiple = true;
+        input.className = 'w-full h-24 p-1 border rounded';
+        const currentValues = new Set(config.current || []);
+
+        config.options.forEach(opt => {
+            const optionValue = typeof opt === 'object' ? opt.value : opt;
+            const optionText = typeof opt === 'object' ? opt.text : opt;
+            const isSelected = currentValues.has(optionValue);
+            const option = new Option(optionText, optionValue, false, isSelected);
+            input.add(option);
+        });
+
+        // Add event listeners to enforce role constraints within the multiselect
+        input.addEventListener('change', () => {
+            const selectedOptions = Array.from(input.selectedOptions).map(o => o.value);
+            const isAdminSelected = selectedOptions.includes('Admin');
+            const isOtherSelected = selectedOptions.includes('Form Tutor') || selectedOptions.includes('Event Steward');
+
+            Array.from(input.options).forEach(option => {
+                if (isAdminSelected) {
+                    // If Admin is selected, disable other roles
+                    option.disabled = (option.value === 'Form Tutor' || option.value === 'Event Steward');
+                } else if (isOtherSelected) {
+                    // If other roles are selected, disable Admin
+                    option.disabled = (option.value === 'Admin');
+                } else {
+                    option.disabled = false;
+                }
+            });
+        });
+    } else {
+        input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'w-full p-1 border rounded';
+        input.value = originalValue === '—' ? '' : originalValue;
+    }
+
+    td.appendChild(input);
+    input.focus();
+
+    function revert() {
+        td.textContent = originalValue;
+    }
+
+    async function save() {
+        let newValues;
+        let newText;
+
+        if (config.type === 'multiselect') {
+            const selectedOptions = Array.from(input.selectedOptions);
+            newValues = selectedOptions.map(opt => opt.value);
+            newText = selectedOptions.map(opt => opt.text).join(', ');
+
+            // For events, values are IDs (numbers). Convert them.
+            if (field === 'assigned_events') {
+                newValues = newValues.map(Number);
+            }
+        } else {
+            newValues = input.value.trim();
+            newText = newValues;
+        }
+
+        // Validation: name is required, email can be blank
+        if (field === 'name' && !newValues) {
+            alert("Staff name cannot be blank.");
+            revert();
+            return;
+        }
+
+        const originalText = (config.type === 'multiselect')
+            ? (assignment[field] || []).map(val => {
+                if (field === 'assigned_events') {
+                    const event = config.options.find(o => o.value === val);
+                    return event ? event.text : '';
+                }
+                return val;
+            }).join(', ')
+            : assignment[field] || '';
+
+        if (newText === originalText) {
+            revert();
+            return;
+        }
+
+        // Optimistically update UI
+        td.textContent = newText || '—';
+
+        // Send update to backend
+        try {
+            let payload = { [field]: newValues };
+
+            // Special handling for role changes to add confirmation and clear related assignments
+            if (field === 'roles') {
+                const oldRoles = new Set(assignment.roles || []);
+                const newRoles = new Set(newValues || []);
+
+                const wasFormTutor = oldRoles.has('Form Tutor');
+                const isNowFormTutor = newRoles.has('Form Tutor');
+                const wasEventSteward = oldRoles.has('Event Steward');
+                const isNowEventSteward = newRoles.has('Event Steward');
+
+                const confirmationMessages = [];
+                if (wasFormTutor && !isNowFormTutor) {
+                    confirmationMessages.push("Removing 'Form Tutor' role will unassign all classes.");
+                    payload.assigned_classes = []; // Prepare to clear classes
+                }
+                if (wasEventSteward && !isNowEventSteward) {
+                    confirmationMessages.push("Removing 'Event Steward' role will unassign all events.");
+                    payload.assigned_events = []; // Prepare to clear events
+                }
+
+                if (confirmationMessages.length > 0) {
+                    const confirmed = await showConfirm({
+                        title: 'Confirm Role Change',
+                        bodyHtml: `<p>Are you sure you want to proceed?</p><ul class="list-disc pl-5 mt-2 text-sm text-red-600"><li>${confirmationMessages.join('</li><li>')}</li></ul>`,
+                        confirmText: 'Confirm'
+                    });
+
+                    if (!confirmed) {
+                        revert();
+                        return;
+                    }
                 }
             }
-        });
-        row.style.display = isVisible ? '' : 'none';
+
+            let updatedAssignment = await window.onUpdateStaffAssignment(assignment.id, payload);
+            assignment = updatedAssignment; // Refresh the local assignment object with the new data
+
+            // If roles were changed, dynamically update the clickability of other cells in the row.
+            if (field === 'roles') {
+                const newRoles = updatedAssignment.roles;
+                const tr = td.parentElement;
+                const classesCell = tr.querySelector('td[data-field="assigned_classes"]');
+                const eventsCell = tr.querySelector('td[data-field="assigned_events"]');
+
+                const canEditClasses = newRoles.includes('Form Tutor') && !newRoles.includes('Admin');
+                const newClassesCell = updateCellClickability(classesCell, canEditClasses, updatedAssignment, 'assigned_classes', fields.assigned_classes);
+
+                const canEditEvents = newRoles.includes('Event Steward') && !newRoles.includes('Admin');
+                const newEventsCell = updateCellClickability(eventsCell, canEditEvents, updatedAssignment, 'assigned_events', fields.assigned_events);
+
+                // Also update the text of the cleared cells
+                if (payload.assigned_classes?.length === 0) newClassesCell.textContent = '—';
+                if (payload.assigned_events?.length === 0) newEventsCell.textContent = '—';
+            }
+
+        } catch (error) {
+            alert(`Update failed: ${error.message}`);
+            // Revert on failure
+            revert();
+        }
+    }
+
+    input.addEventListener('blur', save);
+    input.addEventListener('keydown', e => {
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            input.removeEventListener('blur', save);
+            revert();
+        }
+        // Note: 'Enter' doesn't make sense for multi-select, so we don't handle it.
     });
+}
+
+/**
+ * A helper function to add or remove the dblclick listener for a cell.
+ */
+function updateCellClickability(cell, isEditable, assignment, key, config) {
+    // First, remove any existing listener to prevent duplicates.
+    // A simple way is to clone the node, which removes all listeners.
+    const newCell = cell.cloneNode(true);
+    cell.parentNode.replaceChild(newCell, cell);
+
+    if (isEditable) {
+        newCell.addEventListener('dblclick', () => makeCellEditable(newCell, assignment, key, config));
+    }
+
+    return newCell; // Return the new cell so it can be further manipulated
+}
+
+function createStaffRow(assignment, allEvents, settings, eventsById, allPossibleClasses) {
+    // If maps aren't provided, create them. This allows the function to be self-contained.
+    if (!eventsById) eventsById = new Map(allEvents.map(e => [e.id, `Y${e.year_group} ${e.name}`]));
+    if (!allPossibleClasses) allPossibleClasses = getClassesFromSettings(settings);
+
+    const tr = document.createElement('tr');
+    tr.className = 'border-b';
+
+    const fields = {
+        name: { value: assignment.name, type: 'text' },
+        email: { value: assignment.email || '', type: 'text' },
+        roles: { value: assignment.roles.join(', '), type: 'multiselect', options: ['Admin', 'Form Tutor', 'Event Steward'], current: assignment.roles },
+        assigned_classes: { value: (assignment.assigned_classes || []).join(', '), type: 'multiselect', options: allPossibleClasses, current: assignment.assigned_classes || [] },
+        assigned_events: { value: (assignment.assigned_events || []).map(id => eventsById.get(id)).join(', '), type: 'multiselect', options: allEvents.map(e => ({ text: `Y${e.year_group} ${e.name}`, value: e.id })), current: assignment.assigned_events },
+        sign_in_code: { value: assignment.sign_in_code, type: 'readonly' },
+        actions: { value: '', type: 'actions' }
+    };
+
+    for (const [key, config] of Object.entries(fields)) {
+        const td = document.createElement('td');
+        td.className = 'p-2';
+        td.textContent = config.value || '—';
+        td.dataset.field = key;
+
+        if (config.type === 'actions') {
+            td.innerHTML = `<button data-staff-id="${assignment.id}" class="delete-staff text-red-600 hover:underline text-xs">Delete</button>`;
+        } else if (config.type !== 'readonly') {
+            let isEditable = true;
+            const hasAdminRole = assignment.roles.includes('Admin');
+            if (key === 'assigned_classes') isEditable = assignment.roles.includes('Form Tutor') && !hasAdminRole;
+            else if (key === 'assigned_events') isEditable = assignment.roles.includes('Event Steward') && !hasAdminRole;
+
+            if (isEditable) {
+                td.addEventListener('dblclick', () => makeCellEditable(td, assignment, key, config, fields));
+            }
+        }
+        tr.appendChild(td);
+    }
+    return tr;
 }

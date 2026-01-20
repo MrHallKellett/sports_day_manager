@@ -1,9 +1,10 @@
 from flask import Blueprint, request, jsonify, abort, send_from_directory
 from database import db
-from models import Event, SportsDay, SportsDayParticipant, Student, Settings, EventParticipant, SportsDaySetting, StaffMember, StaffAssignment, AuditLog
+from models import Event, SportsDay, SportsDayParticipant, Student, Settings, EventParticipant, SportsDaySetting, StaffMember, StaffAssignment, AuditLog, Result
 
 from sqlalchemy import func
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+
 
 bp = Blueprint("routes", __name__)
 
@@ -292,6 +293,84 @@ def update_event(eid):
     db.session.commit()
     return ok({"message":"event updated"})
 
+@bp.post("/events/<int:event_id>/start")
+def start_race(event_id):
+    event = Event.query.get_or_404(event_id)
+    auth_code = request.headers.get('X-Auth-Code')
+    if not is_authorized_for_sportsday(auth_code, event.sports_day_id):
+        abort(403, "You are not authorized to start this event.")
+
+    participants = EventParticipant.query.filter_by(event_id=event_id).all()
+    hkt = timezone(timedelta(hours=8))
+    start_time = datetime.now(hkt)
+
+    for p in participants:
+        result = Result.query.filter_by(event_id=event_id, student_id=p.student_id).first()
+        if not result:
+            result = Result(event_id=event_id, student_id=p.student_id)
+            db.session.add(result)
+        result.start_time = start_time
+        result.finish_time = None # Clear any previous finish time
+        result.result_value = None
+
+    log_action(event.sports_day_id, get_user_info_from_request(), f"started race for event '{event.name}' (Y{event.year_group})")
+    db.session.commit()
+    return ok({"message": "Race started for all participants."})
+
+@bp.post("/events/<int:event_id>/students/<int:student_id>/finish")
+def finish_race(event_id, student_id):
+    event = Event.query.get_or_404(event_id)
+    auth_code = request.headers.get('X-Auth-Code')
+    if not is_authorized_for_sportsday(auth_code, event.sports_day_id):
+        abort(403, "You are not authorized to finish this event for a student.")
+
+    result = Result.query.filter_by(event_id=event_id, student_id=student_id).first()
+    # If a result object doesn't exist (e.g., race started before this student was added), create it.
+    hkt = timezone(timedelta(hours=8))
+    if not result:
+        # This case is for a student added late; their start time is now.
+        result = Result(event_id=event_id, student_id=student_id, start_time=datetime.now(hkt))
+        db.session.add(result)
+
+    if not result.start_time:
+        abort(400, "Cannot record finish time before start time is set.")
+
+    # Ensure start_time is timezone-aware before calculation
+    result.start_time = result.start_time.replace(tzinfo=hkt)
+
+    result.finish_time = datetime.now(hkt)
+    result.result_value = (result.finish_time - result.start_time).total_seconds()
+
+    student = Student.query.get_or_404(student_id)
+    log_action(event.sports_day_id, get_user_info_from_request(), f"recorded finish time for '{student.name}' in event '{event.name}'")
+    db.session.commit()
+    return ok({"message": "Finish time recorded."})
+
+@bp.get("/events/<int:event_id>/results")
+def get_event_results(event_id):
+    event = Event.query.get_or_404(event_id)
+    auth_code = request.args.get('code') # Staff code from query param
+    assignment = StaffAssignment.query.filter_by(sign_in_code=auth_code).first()
+    if not assignment or event.sports_day_id != assignment.sports_day_id:
+        abort(403, "You are not authorized to view results for this event.")
+
+    participants = Student.query.join(EventParticipant).filter(EventParticipant.event_id == event_id).all()
+    results = Result.query.filter_by(event_id=event_id).all()
+    results_map = {r.student_id: r for r in results}
+
+    payload = []
+    for p in participants:
+        res = results_map.get(p.id)
+        payload.append({
+            "student": {"id": p.id, "name": p.name, "year": p.year, "house": p.house},
+            "result": {
+                "start_time": res.start_time.isoformat() if res and res.start_time else None,
+                "finish_time": res.finish_time.isoformat() if res and res.finish_time else None,
+                "result_value": res.result_value if res else None
+            } if res else None
+        })
+    return ok(payload)
+
 @bp.patch("/participants/<int:sdid>")
 def update_participants(sdid):
     pass
@@ -475,10 +554,9 @@ def staff_dashboard_data():
     # If the staff member is an Event Steward, resolve event IDs to names
     if "Event Steward" in assignment_dict.get("roles", []) and assignment_dict.get("assigned_events"):
         assigned_event_ids = assignment_dict["assigned_events"]
-        events = Event.query.filter(Event.id.in_(assigned_event_ids)).all()
-        event_names = [f"Y{e.year_group} {e.name}" for e in events]
-        # Add the resolved names to the payload
-        assignment_dict["assigned_event_names"] = event_names
+        events = Event.query.filter(Event.id.in_(assigned_event_ids)).order_by(Event.name).all()
+        # Add the full event objects to the payload for the frontend to use
+        assignment_dict["assigned_event_objects"] = [e.to_dict() for e in events]
 
 
     return ok({
@@ -556,15 +634,27 @@ def add_staff_to_sportsday(sd_id):
     log_action(sd_id, get_user_info_from_request(), f"added new staff member '{name}' with roles: {', '.join(data.get('roles', []))}")
     db.session.commit()
 
-    return created(new_assignment.to_dict())
+    # We need to refresh the object to get the relationship-loaded data
+    # for the to_dict() method to include name and email.
+    db.session.refresh(new_assignment)
+
+    return created(new_assignment.to_dict()) # Now includes name and email
 
 @bp.patch("/staff/assignments/<int:assignment_id>")
 def update_staff_assignment(assignment_id):
     assignment = StaffAssignment.query.get_or_404(assignment_id)
+    user_info = get_user_info_from_request()
     data = request.json
     for key, value in data.items():
         if hasattr(assignment, key) and key not in ['id', 'staff_id', 'sports_day_id', 'sign_in_code']:
-            setattr(assignment, key, value)
+            old_value = getattr(assignment, key)
+            if old_value != value:
+                log_action(
+                    assignment.sports_day_id,
+                    user_info,
+                    f"updated staff '{assignment.staff_member.name}': set {key} from '{old_value}' to '{value}'"
+                )
+                setattr(assignment, key, value)
     db.session.commit()
     return ok(assignment.to_dict())
 
@@ -643,14 +733,15 @@ def upload_staff(sd_id):
             if not StaffAssignment.query.filter_by(sign_in_code=code).first():
                 break
 
+        roles = [r.strip() for r in raw.get("roles", "").split(',') if r.strip()]
         new_assignment = StaffAssignment(
             staff_id=staff_member.id,
             sports_day_id=sd_id,
-            roles=[r.strip() for r in raw.get("roles", "").split(',') if r.strip()],
+            roles=roles,
             sign_in_code=code
         )
         db.session.add(new_assignment)
-        log_action(sd_id, get_user_info_from_request(), f"added new staff member '{name}' via CSV")
+        log_action(sd_id, get_user_info_from_request(), f"added new staff member '{name}' with roles: {', '.join(roles)} via CSV")
         created_count += 1
 
     db.session.commit()
@@ -1125,6 +1216,29 @@ def remove_participant(event_id, student_id):
     db.session.commit()
     return ok({"message": "removed"})
 
+@bp.patch("/events/<int:event_id>/results/<int:student_id>")
+def update_result(event_id, student_id):
+    result = Result.query.filter_by(event_id=event_id, student_id=student_id).first_or_404()
+    data = request.json
+    # Simplified for now, can be expanded
+    hkt = timezone(timedelta(hours=8))
+    if 'start_time' in data and data['start_time']: # The incoming time is offset-aware (from JS .toISOString())
+        utc_dt = datetime.fromisoformat(data['start_time'].replace('Z', '+00:00'))
+        result.start_time = utc_dt.astimezone(hkt) # Convert from UTC to HKT
+    if 'finish_time' in data and data['finish_time']: # The incoming time is offset-aware
+        utc_dt = datetime.fromisoformat(data['finish_time'].replace('Z', '+00:00'))
+        result.finish_time = utc_dt.astimezone(hkt) # Convert from UTC to HKT
+    
+    if result.start_time and result.finish_time:
+        # When loading from DB, datetimes are naive. We must make them aware before subtracting.
+        if result.start_time.tzinfo is None:
+            result.start_time = result.start_time.replace(tzinfo=hkt)
+        if result.finish_time.tzinfo is None:
+            result.finish_time = result.finish_time.replace(tzinfo=hkt)
+        result.result_value = (result.finish_time - result.start_time).total_seconds()
+
+    db.session.commit()
+    return ok({"message": "Result updated"})
 
 # -----------------------------
 # SECURITY HELPERS
@@ -1137,8 +1251,11 @@ def is_authorized_for_sportsday(auth_code, sports_day_id):
         return True # Super admin can access anything
 
     assignment = StaffAssignment.query.filter_by(sign_in_code=auth_code).first()
-    # A scoped admin is only authorized if their assignment's sports_day_id matches
-    return assignment and "Admin" in assignment.roles and str(assignment.sports_day_id) == str(sports_day_id)
+    if not assignment:
+        return False
+    
+    # Any staff member assigned to the sports day is authorized.
+    return str(assignment.sports_day_id) == str(sports_day_id)
 
 
 # -----------------------------

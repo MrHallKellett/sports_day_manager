@@ -27,10 +27,13 @@ export async function updateStudent(studentId, payload) {
     });
 }
 
-export async function createStudent(payload) {
+export async function createStudent(payload, sportsdayId) {
     return apiClient(`/students`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+            "Content-Type": "application/json",
+            "X-Sports-Day-ID": sportsdayId
+        },
         body: JSON.stringify(payload)
     });
 }

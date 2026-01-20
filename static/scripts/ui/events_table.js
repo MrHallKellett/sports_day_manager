@@ -102,6 +102,7 @@ function makeCellEditable(td, event, field, settings) {
                 await updateEvent(event.id, { [field]: newValue });
                 showToast('Event updated successfully.', { type: 'success' });
                 event[field] = newValue; // Update local data object
+                window.onEventUpdated(); // Notify the main page that an event has changed
             } catch (error) {
                 showToast(`Update failed: ${error.message}`, { type: 'error' });
                 td.textContent = originalValue; // Revert on failure

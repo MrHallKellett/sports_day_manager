@@ -110,7 +110,9 @@ class Result(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     event_id = db.Column(db.Integer, db.ForeignKey("events.id"), nullable=False)
     student_id = db.Column(db.Integer, db.ForeignKey("students.id"), nullable=False)
-    result_value = db.Column(db.Float, nullable=False)
+    result_value = db.Column(db.Float, nullable=True) # Can be null until finish time is set
+    start_time = db.Column(db.DateTime, nullable=True)
+    finish_time = db.Column(db.DateTime, nullable=True)
 
 class SportsDayParticipant(db.Model):
     __tablename__ = "sports_day_participants"

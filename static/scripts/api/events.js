@@ -82,3 +82,46 @@ export async function toggleParticipation(eventId, studentId, on, authCode = nul
         return apiClient(`${url}/${studentId}`, options);
     }
 }
+
+export async function fetchEventResults(eventId, code) {
+    const res = await apiClient(`/events/${eventId}/results?code=${code}`);
+    if (!res.ok) throw new Error('Failed to fetch event results');
+    return res.json();
+}
+
+export async function startRace(eventId, code) {
+    const res = await apiClient(`/events/${eventId}/start`, {
+        method: 'POST',
+        headers: { 'X-Auth-Code': code }
+    });
+    if (!res.ok) {
+        const error = await res.text();
+        throw new Error(error || 'Failed to start race');
+    }
+    return res.json();
+}
+
+export async function finishRace(eventId, studentId, code) {
+    const res = await apiClient(`/events/${eventId}/students/${studentId}/finish`, {
+        method: 'POST',
+        headers: { 'X-Auth-Code': code }
+    });
+    if (!res.ok) {
+        const error = await res.text();
+        throw new Error(error || 'Failed to record finish time');
+    }
+    return res.json();
+}
+
+export async function updateResult(eventId, studentId, payload) {
+    const res = await apiClient(`/events/${eventId}/results/${studentId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+        const error = await res.text();
+        throw new Error(error || 'Failed to update result');
+    }
+    return res.json();
+}

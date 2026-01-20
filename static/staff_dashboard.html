@@ -31,7 +31,7 @@
         <nav id="tabs-nav" class="-mb-px flex space-x-6" aria-label="Tabs">
             <!-- Tabs will be dynamically inserted here based on role -->
             <button data-tab="students" class="tab-button hidden whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm">Students</button>
-            <button data-tab="events" class="tab-button hidden whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm">Events</button>
+            <button data-tab="results" class="tab-button hidden whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm">Results</button>
         </nav>
     </div>
 
@@ -42,7 +42,7 @@
             <div class="bg-white shadow p-4 rounded">
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="font-semibold text-lg">Students</h2>
-                    <div>
+                    <div class="hidden">
                         <button id="showHighlightsBtn" type="button" class="ml-4 bg-gray-200 text-gray-800 px-3 py-2 rounded hover:bg-gray-300">
                             Show Highlights
                         </button>
@@ -62,12 +62,14 @@
             </div>
         </div>
 
-        <!-- EVENTS PANE (for Event Stewards) -->
-        <div id="events-pane" data-pane="events" class="tab-pane hidden">
+        <!-- RESULTS PANE (for Event Stewards) -->
+        <div id="results-pane" data-pane="results" class="tab-pane hidden">
             <div class="bg-white shadow p-4 rounded">
-                <h2 class="font-semibold text-lg">My Assigned Events</h2>
-                <div id="assigned-events-list">
-                    <!-- Assigned events will be listed here -->
+                <div class="mb-4">
+                    <select id="event-results-select" class="w-full md:w-1/2 p-2 border rounded"></select>
+                </div>
+                <div id="event-results-container" class="overflow-auto">
+                    <!-- Results table will be rendered here -->
                 </div>
             </div>
         </div>

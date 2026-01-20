@@ -3,7 +3,7 @@
 import { fetchSportsDay, fetchSportsDaySettings,
          updateSportsDayRequirements, loadConfiguredAgeCategories, addStudentToSportsDay } from "../api/sportsdays.js"
 import { fetchStudentsForSportsDay, createStudent, updateStudent, removeStudentFromSportsDay } from "../api/students.js"
-import { fetchStaff, createStaff as createNewStaff, deleteStaff, uploadStaffCsv } from "../api/staff_table.js"
+import { fetchStaff, createStaff as createNewStaff, deleteStaff, uploadStaffCsv, updateStaffAssignment } from "../api/staff_table.js"
 import { fetchEvents, toggleParticipation, deleteEventById, uploadEventsCsv, fetchDuplicateEventOptions, duplicateEvent } from "../api/events.js";
 import { loadParticipationSettings, applyYearGroupSettings } from "../ui/sportsday_settings.js"
 
@@ -11,7 +11,7 @@ import { populateHouseInputs, getSelectedYearGroups, addHouse, getHouses } from 
 
 import { renderEventsTable } from "../ui/events_table.js"
 import { renderStudentsTable } from "../ui/students_table.js"
-import { setupStaffForm, renderStaffTable } from "../ui/staff_table.js"
+import { setupStaffForm, renderStaffTable, appendStaffRow } from "../ui/staff_table.js"
 import { computeEventWarnings } from "../domain/events.js";
 import { indexIssues } from "../domain/issues.js";
 import { findExistingStudent } from "../domain/students.js";
@@ -22,8 +22,9 @@ import { showError, showConfirm } from "../ui/feedback.js";
 import { showErrors } from "../ui/feedback.js";
 import { uploadStudentsCsv } from "../api/students.js";
 
-let currentEvents = []; // Store current events for CSV download
 let sportsDayEventNames = []; // Store unique event names for CSV template
+let currentSportsDaySettings = {}; // Cache settings for reuse
+let allSportsDayEvents = []; // Cache events for reuse
 
 export function buildRequirementsPayload() {
     return {
@@ -41,6 +42,9 @@ async function loadSportsDay(sportsdayId) {
         fetchSportsDay(sportsdayId),
         fetchSportsDaySettings(sportsdayId)
     ]);
+
+    currentSportsDaySettings = settings; // Cache settings
+    allSportsDayEvents = (await fetchEvents(sportsdayId)); // Cache events
 
     document.getElementById("title").textContent =
         `Sports Day ${sportsday.year}`;
@@ -94,7 +98,6 @@ async function loadEvents(sportsdayId) {
         fetchSportsDaySettings(sportsdayId) // Needed for inline editing dropdowns
     ]);
 
-    currentEvents = sportsDayEvents; // Cache for CSV download
     const warnings = computeEventWarnings(
         sportsDayEvents,
         allowedAgeCategories
@@ -149,8 +152,8 @@ async function loadStaffSection(settings) {
             fetchStaff(sportsdayId),
             fetchEvents(sportsdayId)
         ]);
-        renderStaffTable(staff, events);
-        setupStaffForm(settings, events, onAddStaff);
+        renderStaffTable(staff, allSportsDayEvents, currentSportsDaySettings); // Use cached data
+        setupStaffForm(currentSportsDaySettings, allSportsDayEvents, onAddStaff);
         // Attach listeners after rendering
         attachEventListeners('staffTable', '.delete-staff', 'staffId', onStaffDelete);
     } catch (error) {
@@ -159,11 +162,15 @@ async function loadStaffSection(settings) {
 }
 
 async function onAddStaff(payload) {
-    const newStaff = await createNewStaff(sportsdayId, payload);
-    showToast(`Staff member ${newStaff.name} created with sign-in code: ${newStaff.sign_in_code}`, { type: 'success', duration: 10000 });
-    const [staff, events] = await Promise.all([fetchStaff(sportsdayId), fetchEvents(sportsdayId)]);
-    renderStaffTable(staff, events);
-    attachEventListeners('staffTable', '.delete-staff', 'staffId', onStaffDelete);
+    try {
+        const newStaffAssignment = await createNewStaff(sportsdayId, payload);
+        showToast(`Staff member ${newStaffAssignment.name} created with sign-in code: ${newStaffAssignment.sign_in_code}`, { type: 'success', duration: 10000 });
+        
+        // Dynamically add the new staff member to the table instead of reloading
+        appendStaffRow(newStaffAssignment, allSportsDayEvents, currentSportsDaySettings);
+    } catch (error) {
+        showError(`Failed to add staff: ${error.message}`);
+    }
 }
 
 async function onStaffDelete(assignmentId) {
@@ -340,6 +347,13 @@ async function onConfirmDuplicate(sourceEventId) {
     await loadEvents(sportsdayId);
 }
 
+window.onEventUpdated = async () => {
+    // 1. Re-fetch the events to get the latest data and update the shared cache.
+    allSportsDayEvents = await fetchEvents(sportsdayId);
+    // Re-render the staff table to reflect the changes in event names/details.
+    await loadStaffSection();
+};
+
 function closeDuplicateDropdownOnClickOutside(event) {
     const dropdown = document.getElementById('duplicateDropdown');
     const button = document.getElementById('duplicateEventBtn');
@@ -349,7 +363,7 @@ function closeDuplicateDropdownOnClickOutside(event) {
 }
 
 function onDownloadStudentTemplate() {
-    const headers = ['name', 'house', 'year', ...sportsDayEventNames];
+    const headers = ['name', 'house', 'year', ...Object.keys(sportsDayEventNames)];
     const csvContent = headers.join(',');
     downloadCsv(csvContent, 'student_template.csv');
 }
@@ -401,9 +415,20 @@ window.onUpdateStudent = async (studentId, payload) => {
     return res;
 };
 
+window.onUpdateStaffAssignment = async (assignmentId, payload) => {
+    try {
+        const updatedAssignment = await updateStaffAssignment(assignmentId, payload);
+        showToast("Staff assignment updated");
+        return updatedAssignment; // Return the updated data on success
+    } catch (error) {
+        showError(`Failed to update staff assignment: ${error.message}`);
+        throw error; // Re-throw the error so the calling function knows it failed
+    }
+};
+
 window.onCreateStudent = async payload => {
     // Step 1: Create the student globally
-    const createRes = await createStudent(payload);
+    const createRes = await createStudent(payload, sportsdayId);
     if (!createRes.ok) {
         const msg = await createRes.text();
         showError(msg);
@@ -567,7 +592,7 @@ const sportsdayId = parseInt(
     window.location.pathname.split("/").pop()
 );
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     // --- Security Check ---
     const authCode = sessionStorage.getItem('staffAuthCode');
     if (!authCode) {
@@ -579,6 +604,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // This client-side check is a first line of defense.
 
     // --- Entry Point ---
+
+    // Logout button
+    document.getElementById('logoutBtn').addEventListener('click', () => {
+        sessionStorage.removeItem('staffAuthCode');
+        window.location.href = '/staff/login';
+    });
 
     // Set up event listeners for buttons
     const saveReqsBtn = document.getElementById("saveRequirementsBtn");
@@ -640,5 +671,5 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Load all initial data for the page
     setupTabs();
-    loadSportsDay(sportsdayId);
+    await loadSportsDay(sportsdayId); // Await the async function call
 });

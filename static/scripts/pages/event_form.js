@@ -3,6 +3,9 @@ import { loadConfiguredAgeCategories } from "../api/sportsdays.js";
 import { displayExistingEventData, initCreate } from "../ui/event_form.js";
 import { fetchEvent, updateEvent } from "../api/events.js";
 import { getValue } from "./helpers.js"
+import { showError } from "../ui/feedback.js";
+import { apiClient } from "../api/api_client.js";
+
 
 let mode = "create";
 let eventId = null;
@@ -56,7 +59,7 @@ if (!form) {
             const payload = buildEventPayload();
             if (!validateEventForm(payload)) return;
             const url = mode === "create"
-                ? `/sportsdays/${sportsDayId}/events`
+                ? `/events`
                 : `/events/${eventId}`; // The update endpoint is not nested
 
             const method = mode === "create" ? "POST" : "PATCH";
@@ -66,17 +69,22 @@ if (!form) {
             }
             
             const res = (mode === 'create')
-                ? await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+                ? await apiClient(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
                 : await updateEvent(eventId, payload);
             
             
 
             if (res.ok) {
-                const data = await res.json();
-                if (data.removed_count > 0) {
-                    const message = `Event '${data.event_name}' updated. ${data.removed_count} student(s) were automatically removed due to the year group change.`;
-                    sessionStorage.setItem('toastMessage', message);
+                if (mode === 'create') {
+                    sessionStorage.setItem('toastMessage', `Event '${payload.name}' created successfully.`);
+                } else { // mode === 'edit'
+                    const data = await res.json();
+                    if (data.removed_count > 0) {
+                        const message = `Event '${payload.name}' updated. ${data.removed_count} student(s) were automatically removed due to the year group change.`;
+                        sessionStorage.setItem('toastMessage', message);
+                    }
                 }
+                sessionStorage.setItem('activeAdminTab', 'events'); // Set the active tab for the redirect
                 window.location.href = `/admin/sportsday/${sportsDayId}`;
             } else {
                 const errorText = await res.text();

@@ -20,6 +20,19 @@ export async function createStaff(sportsdayId, payload) {
     return res.json();
 }
 
+export async function updateStaffAssignment(assignmentId, payload) {
+    const res = await apiClient(`/staff/assignments/${assignmentId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+        const error = await res.text();
+        throw new Error(error || 'Failed to update staff assignment');
+    }
+    return res.json();
+}
+
 export async function deleteStaff(assignmentId) {
     const res = await apiClient(`/staff/assignments/${assignmentId}`, { method: 'DELETE' });
     if (!res.ok) throw new Error('Failed to delete staff member');

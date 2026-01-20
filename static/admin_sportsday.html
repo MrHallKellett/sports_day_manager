@@ -34,10 +34,15 @@
 
 <div class="max-w-7xl mx-auto p-4">
 
-    <h1 id="title" class="text-2xl font-bold mb-4">Sports Day</h1>
+    <div class="flex justify-between items-center mb-4">
+        <h1 id="title" class="text-2xl font-bold">Sports Day</h1>
+        <button id="logoutBtn" class="bg-red-600 text-white font-semibold px-4 py-2 rounded shadow hover:bg-red-700">
+            Logout
+        </button>
+    </div>
 
     <!-- STATUS -->
-    <div class="bg-white shadow p-4 rounded mb-6">
+    <div class="bg-white shadow p-4 rounded mb-6 mt-4">
         <h2 class="font-semibold mb-2">Status</h2>
         <select id="status" class="border rounded px-3 py-2">
             <option value="registering">Registering participants</option>
@@ -294,20 +299,20 @@
                     <fieldset class="mt-4">
                         <legend class="text-sm font-medium text-gray-700">Roles</legend>
                         <div class="mt-2 space-y-2">
-                            <label class="flex items-center"><input type="checkbox" id="roleFormTutor" name="roles" value="Form Tutor" class="mr-2"> Form Tutor</label>
-                            <label class="flex items-center"><input type="checkbox" id="roleEventSteward" name="roles" value="Event Steward" class="mr-2"> Event Steward</label>
-                            <label class="flex items-center"><input type="checkbox" id="roleAdmin" name="roles" value="Admin" class="mr-2"> Admin</label>
+                            <label class="flex items-center"><input type="checkbox" id="newStaffRoleFormTutor" name="roles" value="Form Tutor" class="mr-2"> Form Tutor</label>
+                            <label class="flex items-center"><input type="checkbox" id="newStaffRoleEventSteward" name="roles" value="Event Steward" class="mr-2"> Event Steward</label>
+                            <label class="flex items-center"><input type="checkbox" id="newStaffRoleAdmin" name="roles" value="Admin" class="mr-2"> Admin</label>
                         </div>
                     </fieldset>
                 </div>
 
                 <!-- Assignments -->
                 <div>
-                    <div id="formTutorAssignments" class="hidden">
+                    <div id="assignClassesContainer" class="hidden">
                         <label for="assignClasses" class="block text-sm font-medium text-gray-700">Assign Classes</label>
                         <select id="assignClasses" multiple class="mt-1 block w-full border rounded px-3 py-2 h-24"></select>
                     </div>
-                    <div id="eventStewardAssignments" class="hidden mt-4">
+                    <div id="assignEventsContainer" class="hidden mt-4">
                         <label for="assignEvents" class="block text-sm font-medium text-gray-700">Assign Events</label>
                         <select id="assignEvents" multiple class="mt-1 block w-full border rounded px-3 py-2 h-24"></select>
                     </div>
@@ -318,12 +323,12 @@
 
         <!-- Staff Table -->
         <div class="overflow-auto h-[40vh] border rounded">
-            <table class="min-w-full text-sm">
+            <table id="staffTable" class="min-w-full text-sm">
                 <thead>
                     <tr id="staff-header-row" class="text-left border-b"></tr>
                     <tr id="staff-filter-row" class="text-left border-b"></tr>
                 </thead>
-                <tbody id="staffTable">
+                <tbody id="staffTableBody">
                     <tr><td colspan="5" class="py-4 text-center text-gray-500">Loading staff...</td></tr>
                 </tbody>
             </table>

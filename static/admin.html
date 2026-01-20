@@ -13,9 +13,14 @@
 <header class="bg-blue-600 text-white py-4 shadow flex justify-between items-center">
     <div class="max-w-4xl mx-auto px-4 flex justify-between items-center">
         <h1 class="text-xl font-bold">Sports Day Administration</h1>
-        <button onclick="openCreateModal()" class="bg-white text-blue-600 font-semibold px-4 py-2 rounded shadow hover:bg-gray-100">
-            + Create Sports Day
-        </button>
+        <div class="flex items-center space-x-4">
+            <button onclick="openCreateModal()" class="bg-white text-blue-600 font-semibold px-4 py-2 rounded shadow hover:bg-gray-100">
+                + Create Sports Day
+            </button>
+            <button id="logoutBtn" class="bg-red-600 text-white font-semibold px-4 py-2 rounded shadow hover:bg-red-700">
+                Logout
+            </button>
+        </div>
     </div>
 </header>
 
@@ -85,6 +90,12 @@ if (superAdminCode !== '999999') {
     // If not logged in as super admin, redirect to login
     window.location.href = '/staff/login';
 }
+
+// --- Logout ---
+document.getElementById('logoutBtn').addEventListener('click', () => {
+    sessionStorage.removeItem('staffAuthCode');
+    window.location.href = '/staff/login';
+});
 
 
 // Load sports days
