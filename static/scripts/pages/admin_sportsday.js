@@ -12,6 +12,7 @@ import { populateHouseInputs, getSelectedYearGroups, addHouse, getHouses } from 
 import { renderEventsTable } from "../ui/events_table.js"
 import { renderStudentsTable } from "../ui/students_table.js"
 import { setupStaffForm, renderStaffTable, appendStaffRow } from "../ui/staff_table.js"
+import { setupResultsTab } from "../ui/results_table.js";
 import { computeEventWarnings } from "../domain/events.js";
 import { indexIssues } from "../domain/issues.js";
 import { findExistingStudent } from "../domain/students.js";
@@ -61,7 +62,7 @@ async function loadSportsDay(sportsdayId) {
 
     await loadEvents(sportsdayId);
     await loadStudents(sportsdayId, settings);
-    await loadStaffSection(settings);
+    await loadStaffSection();
     await loadHistory(sportsdayId);
 }
 async function loadHistory(sportsdayId) { // This function was duplicated, this is the correct one.
@@ -146,7 +147,7 @@ async function onSaveRequirements() {
     }
 }
 
-async function loadStaffSection(settings) {
+async function loadStaffSection() {
     try {
         const [staff, events] = await Promise.all([
             fetchStaff(sportsdayId),
@@ -184,8 +185,7 @@ async function onStaffDelete(assignmentId) {
     try {
         await deleteStaff(assignmentId);
         showToast('Staff member deleted.', { type: 'success' });
-        const settings = await fetchSportsDaySettings(sportsdayId);
-        await loadStaffSection(settings); // Reload the staff section
+        await loadStaffSection(); // Reload the staff section
     } catch (error) {
         showError(`Failed to delete staff member: ${error.message}`);
     }
@@ -226,19 +226,22 @@ async function onStudentRemove(studentId, button) {
     await loadStudents(sportsdayId, settings); // Reload students table
 }
 
-async function onUploadStaff(file) {
+async function onUploadStaff(file, sportsdayId) {
     if (!file) return;
     try {
         const result = await uploadStaffCsv(sportsdayId, file);
-        let message = `${result.created_staff} new staff member(s) created.`;
-        if (result.skipped_staff > 0) {
-            message += ` ${result.skipped_staff} skipped as they already exist.`;
+        let message = `${result.created_staff} new staff created, ${result.updated_staff} updated.`;
+        if (result.skipped_staff > 0) { // This count may be less relevant now
+            message += ` ${result.skipped_staff} skipped.`;
         }
-        showToast(message, { type: 'success', duration: 8000 });
+        
+        if (result.warnings && result.warnings.length > 0) {
+            showErrors(result.warnings);
+        }
 
-        // Only reload if there were changes
-        const settings = await fetchSportsDaySettings(sportsdayId);
-        await loadStaffSection(settings); // Reload staff table
+        showToast(message, { type: 'success', duration: 8000 });
+        
+        await loadStaffSection(); // Reload staff table
     } catch (error) {
         showError(`Upload failed: ${error.message}`);
     } finally {
@@ -368,10 +371,26 @@ function onDownloadStudentTemplate() {
     downloadCsv(csvContent, 'student_template.csv');
 }
 
-function onDownloadStaffTemplate() {
-    const headers = ['name', 'email', 'roles'];
-    const csvContent = headers.join(',');
-    downloadCsv(csvContent, 'staff_template.csv');
+async function onDownloadStaffTemplate() {
+    try {
+        const staffAssignments = await fetchStaff(sportsdayId);
+        const events = allSportsDayEvents; // Use cached events
+        const eventsById = new Map(events.map(e => [e.id, `Y${e.year_group} ${e.name}`]));
+
+        const dataForCsv = staffAssignments.map(s => ({
+            name: s.name,
+            email: s.email || '',
+            roles: (s.roles || []).join(','),
+            assigned_classes: (s.assigned_classes || []).join(','),
+            // Map event IDs to their full names for readability
+            assigned_events: (s.assigned_events || []).map(id => eventsById.get(id) || '').join(',')
+        }));
+
+        const csvContent = convertToCsv(dataForCsv);
+        downloadCsv(csvContent, `staff_export_${sportsdayId}.csv`);
+    } catch (error) {
+        showError(`Failed to download staff data: ${error.message}`);
+    }
 }
 
 function convertToCsv(data) {
@@ -520,8 +539,10 @@ function populateNewStudentDropdowns(settings) {
 }
 
 /* existing callback */
-window.onToggleParticipation = async (eventId, studentId, on) => {
-    const res = await toggleParticipation(eventId, studentId, on);
+window.onToggleParticipation = async (eventId, studentId, on, authCode = null) => {
+    // If no auth code is passed, get it from session storage (for admin view)
+    const code = authCode || sessionStorage.getItem('staffAuthCode');
+    const res = await toggleParticipation(eventId, studentId, on, code);
     if (!res.ok) {
         const msg = await res.text();
         showError(`Unable to update participation: ${msg}`);
@@ -571,6 +592,12 @@ function setupTabs() {
             tab.classList.toggle('hover:text-gray-700', !isSelected);
             tab.classList.toggle('hover:border-gray-300', !isSelected);
         });
+
+        if (tabName === 'results') {
+            const authCode = sessionStorage.getItem('staffAuthCode');
+            // Use the shared results tab setup function
+            setupResultsTab(allSportsDayEvents, authCode, 'admin-event-results-container', 'admin-event-results-select');
+        }
 
         panes.forEach(pane => {
             pane.style.display = pane.dataset.pane === tabName ? 'block' : 'none';
@@ -629,7 +656,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const duplicateEventBtn = document.getElementById('duplicateEventBtn');
     if (duplicateEventBtn) duplicateEventBtn.addEventListener('click', onToggleDuplicateDropdown);
     const staffCsvInput = document.getElementById('staffCsvFile');
-    if (staffCsvInput) staffCsvInput.addEventListener('change', (e) => onUploadStaff(e.target.files[0]));
+    if (staffCsvInput) staffCsvInput.addEventListener('change', (e) => onUploadStaff(e.target.files[0], sportsdayId));
 
 
 

@@ -39,16 +39,17 @@ export function renderStudentsTable({
 
     const filterRow = document.getElementById("student-filter-row");
     filterRow.innerHTML = `
-        <th class="sticky top-10 bg-gray-100 p-1"><input type="text" data-filter="name" placeholder="Filter name..." class="w-full text-xs p-1"></th>
-        <th class="sticky top-10 bg-gray-100 p-1"><input type="text" data-filter="house" placeholder="Filter house..." class="w-full text-xs p-1"></th>
-        <th class="sticky top-10 bg-gray-100 p-1"><input type="text" data-filter="year" placeholder="Filter year..." class="w-full text-xs p-1"></th>
+        <th class="sticky top-0 bg-gray-100 p-1"><input type="text" data-filter="name" placeholder="Filter name..." class="w-full text-xs p-1"></th>
+        <th class="sticky top-0 bg-gray-100 p-1"><input type="text" data-filter="house" placeholder="Filter house..." class="w-full text-xs p-1"></th>
+        <th class="sticky top-0 bg-gray-100 p-1"><input type="text" data-filter="year" placeholder="Filter year..." class="w-full text-xs p-1"></th>
         ${eventNames.map((name, i) => `
-            <th class="sticky top-10 bg-gray-100 p-1" style="width: 40px; min-width: 40px;">
+            <th class="sticky top-0 bg-gray-100 p-1" style="width: 40px; min-width: 40px;">
                 <select data-filter="event" data-event-index="${i}" class="w-full text-xs p-1">
                     <option value="all">All</option><option value="yes">Yes</option><option value="no">No</option>
                 </select>
             </th>
         `).join("")}
+        <th class="sticky top-0 bg-gray-100 p-1"></th>
     `;
 
     const tbody = document.getElementById("studentsTable");
@@ -214,19 +215,15 @@ function renderStudentRow(
     return tr;
 }
 
-function createStudentInfoCell(text, onDoubleClick) {
-    const td = document.createElement("td");
-    td.className = "px-2 py-1";
-    td.textContent = text; // Always display text
-    if (onDoubleClick) { // Only attach if a handler is provided
-        td.addEventListener('dblclick', onDoubleClick);
-    }
-    return td;
-}
+
 
 function makeCellEditable(td, student, field, settings, events_by_name, participation, event_participation_counts, events_by_id, allStudents) {
     const originalValue = td.textContent;
     const tr = td.closest('tr');
+
+    // Temporarily remove the listener to prevent re-triggering on the new input
+    td.removeEventListener('dblclick', td.dblclickListener);
+
     td.innerHTML = ''; // Clear the cell
 
     let input;
@@ -259,6 +256,8 @@ function makeCellEditable(td, student, field, settings, events_by_name, particip
 
     function revert() {
         td.textContent = originalValue;
+        // Re-attach the listener for future edits
+        td.addEventListener('dblclick', td.dblclickListener);
     }
 
     async function save() {
@@ -267,6 +266,8 @@ function makeCellEditable(td, student, field, settings, events_by_name, particip
         if (String(newValue) !== originalValue) {
             // Optimistically update UI
             td.textContent = newValue;
+            // Re-attach the listener for future edits
+            td.addEventListener('dblclick', td.dblclickListener);
 
             // Update student object for highlight recalculation
             const oldStudentData = { ...student };
@@ -294,6 +295,8 @@ function makeCellEditable(td, student, field, settings, events_by_name, particip
     input.addEventListener('keydown', e => {
         if (e.key === 'Enter') {
             e.preventDefault();
+            // Manually remove blur listener to prevent save on enter if needed
+            // but blur() is the desired action here.
             input.blur(); // Trigger save
         } else if (e.key === 'Escape') {
             e.preventDefault();
@@ -302,6 +305,17 @@ function makeCellEditable(td, student, field, settings, events_by_name, particip
             input.removeEventListener('blur', save);
         }
     });
+}
+
+function createStudentInfoCell(text, onDoubleClick) {
+    const td = document.createElement("td");
+    td.className = "px-2 py-1";
+    td.textContent = text; // Always display text
+    if (onDoubleClick) { // Only attach if a handler is provided
+        td.dblclickListener = onDoubleClick; // Store the listener reference
+        td.addEventListener('dblclick', td.dblclickListener);
+    }
+    return td;
 }
 
 function updateRowHighlight(tr, student, participation, settings, event_participation_counts, events_by_id, allStudents) {

@@ -60,6 +60,7 @@
             <button data-tab="events" class="tab-button whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm">Events</button>
             <button data-tab="students" class="tab-button whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm">Students</button>
             <button data-tab="staff" class="tab-button whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm">Staff</button>
+            <button data-tab="results" class="tab-button whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm">Results</button>
             <button data-tab="history" class="tab-button whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm">History</button>
         </nav>
     </div>
@@ -247,8 +248,10 @@
         <!-- Students Table (full width) -->
         <div class="overflow-auto h-[60vh] border rounded">
             <table class="min-w-full text-sm">
-                <thead>
+                <thead class="sticky top-0 z-10">
                     <tr id="student-header-row" class="text-left border-b"></tr>
+                </thead>
+                <thead class="sticky top-0 z-10">
                     <tr id="student-filter-row" class="text-left border-b"></tr>
                 </thead>
                 <tbody id="studentsTable">
@@ -333,6 +336,20 @@
                 </tbody>
             </table>
         </div>
+            </div>
+        </div>
+
+        <!-- RESULTS PANE -->
+        <div id="results-pane" data-pane="results" class="tab-pane">
+            <div class="bg-white shadow p-4 rounded">
+                <h2 class="font-semibold text-lg mb-4">Record Results</h2>
+                <div class="mb-4">
+                    <select id="admin-event-results-select" class="w-full md:w-1/2 p-2 border rounded"></select>
+                </div>
+                <div id="admin-event-results-container" class="overflow-auto">
+                    <!-- Results table will be rendered here -->
+                    <p class="text-gray-500">Select an event to view and record results.</p>
+                </div>
             </div>
         </div>
 

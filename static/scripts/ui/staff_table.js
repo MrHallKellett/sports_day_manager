@@ -323,7 +323,7 @@ function createStaffRow(assignment, allEvents, settings, eventsById, allPossible
             const hasAdminRole = assignment.roles.includes('Admin');
             if (key === 'assigned_classes') isEditable = assignment.roles.includes('Form Tutor') && !hasAdminRole;
             else if (key === 'assigned_events') isEditable = assignment.roles.includes('Event Steward') && !hasAdminRole;
-
+            
             if (isEditable) {
                 td.addEventListener('dblclick', () => makeCellEditable(td, assignment, key, config, fields));
             }

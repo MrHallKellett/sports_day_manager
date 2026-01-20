@@ -16,7 +16,7 @@ export function getClassesFromSettings(settings) {
 
     (settings.houses || []).forEach(house => {
         years.forEach(year => {
-            classes.add(`Y${year} - ${house}`);
+            classes.add(`Y${year} ${house}`);
         });
     });
 
